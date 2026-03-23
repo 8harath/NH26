@@ -1,5 +1,0 @@
-{
-  "framework": "nextjs",
-  "buildCommand": "cd submissions/61-Avalon && npm install && npm run build",
-  "outputDirectory": "submissions/61-Avalon/.next"
-}
