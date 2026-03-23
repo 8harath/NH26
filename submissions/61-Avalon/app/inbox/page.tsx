@@ -9,7 +9,7 @@ import {
   Archive, Trash2, AlarmClock, PenLine,
   Wand2, Minimize2, Maximize2, CheckCheck, CornerUpLeft,
   LogIn, LogOut, CalendarPlus, ExternalLink,
-  RefreshCw, Filter, ChevronDown, ChevronRight, Plus, PenSquare
+  RefreshCw, Filter, ChevronDown, ChevronRight, ChevronLeft, Plus, PenSquare, CalendarDays
 } from 'lucide-react'
 import NextLink from 'next/link'
 import { Input } from '@/components/ui/input'
@@ -18,6 +18,7 @@ import { Logo } from '@/components/logo'
 import { mockThreads } from '@/data/emails'
 import {
   Thread, ComprehensiveAnalysis, Priority, EmailCategory,
+  EmailSender,
   AIChatMessage, ThreadMeta, SidebarFolder, RewriteAction
 } from '@/types'
 
@@ -25,6 +26,7 @@ import {
 
 const LS_ANALYSES = 'mailmate-analyses'
 const LS_META = 'mailmate-thread-meta'
+const LS_SIDEBAR_PINNED = 'mailmate-sidebar-pinned'
 
 function loadJson<T>(key: string, fallback: T): T {
   if (typeof window === 'undefined') return fallback
@@ -68,6 +70,56 @@ function timeAgo(dateStr: string): string {
   const days = Math.floor(hours / 24)
   if (days < 7) return `${days}d ago`
   return new Date(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+}
+
+interface SyncedCalendarEvent {
+  id: string
+  title: string
+  start: string
+  end: string
+  htmlLink?: string
+  attendees: string[]
+}
+
+function normalizeEmail(value: string) {
+  return value.trim().toLowerCase()
+}
+
+function buildPreview(text: string) {
+  const cleaned = text.replace(/\s+/g, ' ').trim()
+  return cleaned.length > 140 ? `${cleaned.slice(0, 137)}...` : cleaned
+}
+
+function parseAddress(input: string): EmailSender {
+  const trimmed = input.trim()
+  const match = trimmed.match(/^(.*?)<(.+?)>$/)
+  if (match) {
+    const name = match[1].replace(/"/g, '').trim()
+    const email = match[2].trim()
+    return { name: name || email.split('@')[0], email }
+  }
+
+  const email = trimmed
+  const local = email.includes('@') ? email.split('@')[0] : email
+  const formattedName = local
+    .replace(/[._-]+/g, ' ')
+    .replace(/\b\w/g, char => char.toUpperCase())
+
+  return {
+    name: formattedName || email,
+    email,
+  }
+}
+
+function formatCalendarEventLabel(dateStr: string) {
+  const date = new Date(dateStr)
+  if (Number.isNaN(date.getTime())) return dateStr
+  return date.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
 }
 
 // ─── Config maps ────────────────────────────────────────────────
@@ -407,6 +459,8 @@ function ComposePanel({ thread, initialText, meta, onUpdateDraft, onClose, isAut
   thread: Thread; initialText: string; meta: ThreadMeta
   onUpdateDraft: (text: string) => void; onClose: () => void; isAuthenticated?: boolean
   senderName?: string; recipientName?: string
+  userEmail?: string
+  onSent?: (payload: { to: EmailSender; subject: string; body: string }) => void
 }) {
   const [text, setText] = useState(initialText || meta.draft || '')
   const [rewriting, setRewriting] = useState<RewriteAction | null>(null)
@@ -438,24 +492,41 @@ function ComposePanel({ thread, initialText, meta, onUpdateDraft, onClose, isAut
   const handleSend = async () => {
     if (sending) return
     setSending(true)
+    let didSend = !isAuthenticated
+
+    const lastEmail = thread.emails[thread.emails.length - 1]
+    const replyToEmail = userEmail && normalizeEmail(lastEmail.from.email) === normalizeEmail(userEmail)
+      ? thread.from.email
+      : lastEmail.from.email
+    const replyToName = recipientName || thread.from.name
 
     if (isAuthenticated) {
       try {
-        const lastEmail = thread.emails[thread.emails.length - 1]
-        const to = lastEmail.from.email.includes('you@') ? thread.from.email : lastEmail.from.email
-        await fetch('/api/gmail/send', {
+        const res = await fetch('/api/gmail/send', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            to,
+            to: replyToEmail,
             subject: `Re: ${thread.subject}`,
             body: text,
             threadId: thread.id,
           })
         })
+        if (!res.ok) throw new Error('Send failed')
+        didSend = true
       } catch (err) { console.error('Send failed:', err) }
     }
 
+    if (!didSend) {
+      setSending(false)
+      return
+    }
+
+    onSent?.({
+      to: { name: replyToName, email: replyToEmail },
+      subject: `Re: ${thread.subject}`,
+      body: text,
+    })
     setSent(true)
     setSending(false)
     onUpdateDraft('')
@@ -516,8 +587,9 @@ function ComposePanel({ thread, initialText, meta, onUpdateDraft, onClose, isAut
 
 // ─── New Email Compose ──────────────────────────────────────────
 
-function NewComposePanel({ onClose, isAuthenticated, senderName }: {
+function NewComposePanel({ onClose, isAuthenticated, senderName, onSent }: {
   onClose: () => void; isAuthenticated?: boolean; senderName?: string
+  onSent?: (payload: { to: EmailSender; subject: string; body: string }) => void
 }) {
   const [to, setTo] = useState('')
   const [subject, setSubject] = useState('')
@@ -555,6 +627,7 @@ function NewComposePanel({ onClose, isAuthenticated, senderName }: {
         })
         if (!res.ok) throw new Error('Send failed')
       }
+      onSent?.({ to: parseAddress(to), subject, body })
       setSent(true)
       setTimeout(() => { onClose() }, 1500)
     } catch (err) { console.error('Send failed:', err) }
@@ -718,6 +791,7 @@ export default function InboxPage() {
   const isAuthenticated = !!session?.accessToken
   const isAuthLoading = authStatus === 'loading'
   const userName = session?.user?.name ?? ''
+  const userEmail = session?.user?.email ?? ''
 
   const [threads, setThreads] = useState<Thread[]>(mockThreads)
   const [gmailLoading, setGmailLoading] = useState(false)
@@ -735,17 +809,29 @@ export default function InboxPage() {
   const [showLabelInput, setShowLabelInput] = useState(false)
   const [newLabelText, setNewLabelText] = useState('')
   const [sidebarExpanded, setSidebarExpanded] = useState(false)
+  const [sidebarPinned, setSidebarPinned] = useState(false)
   const [categoriesOpen, setCategoriesOpen] = useState(true)
   const [labelsOpen, setLabelsOpen] = useState(true)
+  const [calendarOpen, setCalendarOpen] = useState(true)
   const [showNewCompose, setShowNewCompose] = useState(false)
   const [showFilterMenu, setShowFilterMenu] = useState(false)
   const [filterPriority, setFilterPriority] = useState<FilterPriority>('all')
   const [filterCategory, setFilterCategory] = useState<FilterCategory>('all')
   const [filterRead, setFilterRead] = useState<FilterRead>('all')
+  const [calendarEvents, setCalendarEvents] = useState<SyncedCalendarEvent[]>([])
+  const [calendarLoading, setCalendarLoading] = useState(false)
   const filterRef = useRef<HTMLDivElement>(null)
 
   const selectedThread = threads.find(t => t.id === selectedId) ?? null
   const getMeta = (id: string): ThreadMeta => metas[id] ?? defaultMeta
+  const isSidebarOpen = sidebarPinned || sidebarExpanded
+  const isOwnEmail = useCallback((email: string) => {
+    const normalized = normalizeEmail(email)
+    return userEmail ? normalized === normalizeEmail(userEmail) : normalized.includes('you@')
+  }, [userEmail])
+  const hasGmailLabel = useCallback((thread: Thread, label: string) => {
+    return Array.isArray(thread.gmailLabels) && thread.gmailLabels.includes(label)
+  }, [])
 
   // Close filter dropdown on outside click
   useEffect(() => {
@@ -762,7 +848,7 @@ export default function InboxPage() {
     setGmailLoading(true)
     try {
       const url = new URL('/api/gmail/threads', window.location.origin)
-      if (query) url.searchParams.set('q', query)
+      url.searchParams.set('q', query ? `in:anywhere ${query}` : 'in:anywhere')
       const res = await fetch(url.toString())
       if (res.ok) {
         const data = await res.json()
@@ -785,7 +871,12 @@ export default function InboxPage() {
     setMetas(merged)
     saveJson(LS_META, merged)
     setAllUserLabels(loadJson<string[]>(LS_LABELS, ['Important', 'Follow-up', 'Receipts', 'Travel', 'Project']))
+    setSidebarPinned(loadJson<boolean>(LS_SIDEBAR_PINNED, false))
   }, [])
+
+  useEffect(() => {
+    saveJson(LS_SIDEBAR_PINNED, sidebarPinned)
+  }, [sidebarPinned])
 
   // Fetch Gmail when session is ready
   useEffect(() => {
@@ -793,6 +884,34 @@ export default function InboxPage() {
       fetchGmailThreads()
     }
   }, [isAuthenticated, isAuthLoading, fetchGmailThreads])
+
+  const fetchCalendarEvents = useCallback(async () => {
+    if (!isAuthenticated) {
+      setCalendarEvents([])
+      return
+    }
+
+    setCalendarLoading(true)
+    try {
+      const res = await fetch('/api/calendar/events')
+      if (!res.ok) throw new Error('Calendar sync failed')
+      const data = await res.json()
+      setCalendarEvents(Array.isArray(data.events) ? data.events as SyncedCalendarEvent[] : [])
+    } catch (err) {
+      console.error('Calendar fetch error:', err)
+      setCalendarEvents([])
+    } finally {
+      setCalendarLoading(false)
+    }
+  }, [isAuthenticated])
+
+  useEffect(() => {
+    if (isAuthenticated && !isAuthLoading) {
+      fetchCalendarEvents()
+    } else {
+      setCalendarEvents([])
+    }
+  }, [isAuthenticated, isAuthLoading, fetchCalendarEvents])
 
   // Persist meta changes
   const updateMeta = useCallback((threadId: string, updates: Partial<ThreadMeta>) => {
@@ -922,8 +1041,86 @@ export default function InboxPage() {
   const handleRefresh = useCallback(() => {
     if (isAuthenticated) {
       fetchGmailThreads()
+      fetchCalendarEvents()
     }
-  }, [isAuthenticated, fetchGmailThreads])
+  }, [isAuthenticated, fetchGmailThreads, fetchCalendarEvents])
+
+  const handleSidebarPinToggle = useCallback(() => {
+    setSidebarPinned(prev => {
+      const next = !prev
+      setSidebarExpanded(next)
+      return next
+    })
+  }, [])
+
+  const handleReplySent = useCallback((threadId: string, payload: { to: EmailSender; subject: string; body: string }) => {
+    const timestamp = new Date().toISOString()
+    const from = {
+      name: userName || 'You',
+      email: userEmail || 'you@local.dev',
+    }
+
+    setThreads(prev => prev.map(thread => {
+      if (thread.id !== threadId) return thread
+
+      return {
+        ...thread,
+        timestamp,
+        preview: buildPreview(payload.body),
+        emails: [
+          ...thread.emails,
+          {
+            id: `local-email-${crypto.randomUUID()}`,
+            threadId,
+            from,
+            to: [payload.to],
+            subject: payload.subject,
+            body: payload.body,
+            timestamp,
+            isRead: true,
+          }
+        ],
+      }
+    }))
+    updateMeta(threadId, { draft: '', read: true })
+  }, [updateMeta, userEmail, userName])
+
+  const handleNewComposeSent = useCallback((payload: { to: EmailSender; subject: string; body: string }) => {
+    const timestamp = new Date().toISOString()
+    const threadId = `local-thread-${crypto.randomUUID()}`
+    const from = {
+      name: userName || 'You',
+      email: userEmail || 'you@local.dev',
+    }
+
+    const newThread: Thread = {
+      id: threadId,
+      from: payload.to,
+      subject: payload.subject,
+      preview: buildPreview(payload.body),
+      timestamp,
+      unreadCount: 0,
+      category: 'work',
+      emails: [
+        {
+          id: `local-email-${crypto.randomUUID()}`,
+          threadId,
+          from,
+          to: [payload.to],
+          subject: payload.subject,
+          body: payload.body,
+          timestamp,
+          isRead: true,
+        }
+      ],
+    }
+
+    setThreads(prev => [newThread, ...prev])
+    updateMeta(threadId, { read: true })
+    setSelectedId(threadId)
+    setFolder('sent')
+    setActiveTab('emails')
+  }, [updateMeta, userEmail, userName])
 
   const activeFiltersCount = (filterPriority !== 'all' ? 1 : 0) + (filterCategory !== 'all' ? 1 : 0) + (filterRead !== 'all' ? 1 : 0)
 
@@ -932,14 +1129,18 @@ export default function InboxPage() {
   // Filter threads by folder + search + filters
   const filteredThreads = threads.filter(t => {
     const m = getMeta(t.id)
+    const isGmailThread = Array.isArray(t.gmailLabels) && t.gmailLabels.length > 0
+    const isSentThread = isGmailThread ? hasGmailLabel(t, 'SENT') : t.emails.some(e => isOwnEmail(e.from.email))
 
     switch (folder) {
-      case 'inbox': if (m.archived || m.trashed) return false; break
+      case 'inbox':
+        if (m.archived || m.trashed) return false
+        if (isGmailThread && !hasGmailLabel(t, 'INBOX')) return false
+        break
       case 'starred': if (!m.starred || m.trashed) return false; break
       case 'snoozed': if (!m.snoozedUntil || m.trashed) return false; break
       case 'sent': {
-        const hasSent = t.emails.some(e => e.from.email.includes('you@'))
-        if (!hasSent || m.trashed) return false; break
+        if (!isSentThread || m.trashed) return false; break
       }
       case 'drafts': if (!m.draft || m.trashed) return false; break
       case 'trash': if (!m.trashed) return false; break
@@ -966,13 +1167,18 @@ export default function InboxPage() {
   const counts: Partial<Record<SidebarFolder, number>> = {}
   threads.forEach(t => {
     const m = getMeta(t.id)
-    if (!m.archived && !m.trashed && !m.read) counts.inbox = (counts.inbox ?? 0) + 1
+    const isGmailInboxThread = Array.isArray(t.gmailLabels) ? t.gmailLabels.includes('INBOX') : true
+    if (!m.archived && !m.trashed && !m.read && isGmailInboxThread) counts.inbox = (counts.inbox ?? 0) + 1
     if (m.starred && !m.trashed) counts.starred = (counts.starred ?? 0) + 1
     if (m.snoozedUntil && !m.trashed) counts.snoozed = (counts.snoozed ?? 0) + 1
     if (m.draft && !m.trashed) counts.drafts = (counts.drafts ?? 0) + 1
     if (m.trashed) counts.trash = (counts.trash ?? 0) + 1
   })
-  counts.sent = threads.filter(t => t.emails.some(e => e.from.email.includes('you@')) && !getMeta(t.id).trashed).length
+  counts.sent = threads.filter(t => {
+    const isGmailThread = Array.isArray(t.gmailLabels) && t.gmailLabels.length > 0
+    const isSentThread = isGmailThread ? hasGmailLabel(t, 'SENT') : t.emails.some(e => isOwnEmail(e.from.email))
+    return isSentThread && !getMeta(t.id).trashed
+  }).length
 
   const selectedAnalysis = selectedId ? analyses[selectedId] : null
   const isLoadingSelected = selectedId ? loadingThreads.has(selectedId) : false
@@ -1015,9 +1221,15 @@ export default function InboxPage() {
           </Button>
 
           {isAuthenticated && (
-            <span className="text-[11px] text-emerald-700 font-semibold bg-emerald-50 px-3 py-1.5 rounded-full flex items-center gap-1.5 border border-emerald-200/60">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Gmail Connected
-            </span>
+            <>
+              <span className="text-[11px] text-emerald-700 font-semibold bg-emerald-50 px-3 py-1.5 rounded-full flex items-center gap-1.5 border border-emerald-200/60">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Gmail Connected
+              </span>
+              <span className="text-[11px] text-blue-700 font-semibold bg-blue-50 px-3 py-1.5 rounded-full flex items-center gap-1.5 border border-blue-200/60">
+                {calendarLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <CalendarDays className="w-3 h-3" />}
+                {calendarEvents[0] ? `Calendar synced · ${formatCalendarEventLabel(calendarEvents[0].start)}` : 'Calendar synced'}
+              </span>
+            </>
           )}
 
           <Button variant="outline" size="sm" onClick={() => setShowChat(!showChat)}
@@ -1041,31 +1253,40 @@ export default function InboxPage() {
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar — collapsed (icons only) by default, expands on hover */}
         <aside
-          onMouseEnter={() => setSidebarExpanded(true)}
-          onMouseLeave={() => setSidebarExpanded(false)}
+          onMouseEnter={() => { if (!sidebarPinned) setSidebarExpanded(true) }}
+          onMouseLeave={() => { if (!sidebarPinned) setSidebarExpanded(false) }}
           className={`border-r border-gray-200/80 bg-white py-3 shrink-0 flex flex-col transition-all duration-200 ease-in-out ${
-            sidebarExpanded ? 'w-56' : 'w-14'
+            isSidebarOpen ? 'w-56' : 'w-14'
           }`}>
+          <div className={`px-2 mb-3 flex ${isSidebarOpen ? 'justify-end' : 'justify-center'}`}>
+            <button
+              onClick={handleSidebarPinToggle}
+              className="p-2 rounded-xl text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+              title={sidebarPinned ? 'Unpin sidebar' : 'Pin sidebar open'}
+            >
+              {sidebarPinned ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+            </button>
+          </div>
           <nav className="space-y-0.5 px-2">
             {sidebarItems.map(item => {
               const count = counts[item.folder]
               const active = folder === item.folder
               return (
                 <button key={item.folder} onClick={() => setFolder(item.folder)}
-                  title={!sidebarExpanded ? item.label : undefined}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all ${
+                  title={!isSidebarOpen ? item.label : undefined}
+                  className={`relative w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all ${
                     active
                       ? 'bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 font-semibold shadow-sm shadow-blue-100/50'
                       : 'text-gray-600 hover:bg-gray-50 font-medium'
-                  } ${sidebarExpanded ? '' : 'justify-center'}`}>
+                  } ${isSidebarOpen ? '' : 'justify-center'}`}>
                   <item.icon className={`w-[18px] h-[18px] shrink-0 ${active ? 'text-blue-600' : 'text-gray-400'}`} />
-                  {sidebarExpanded && <span className="flex-1 text-left truncate">{item.label}</span>}
-                  {sidebarExpanded && count ? (
+                  {isSidebarOpen && <span className="flex-1 text-left truncate">{item.label}</span>}
+                  {isSidebarOpen && count ? (
                     <span className={`text-[11px] font-bold min-w-[20px] text-center ${
                       active ? 'text-blue-600' : item.folder === 'inbox' && count > 0 ? 'bg-blue-600 text-white rounded-full px-1.5 py-0.5' : 'text-gray-400'
                     }`}>{count}</span>
                   ) : null}
-                  {!sidebarExpanded && count && item.folder === 'inbox' && count > 0 ? (
+                  {!isSidebarOpen && count && item.folder === 'inbox' && count > 0 ? (
                     <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-blue-600" />
                   ) : null}
                 </button>
@@ -1074,7 +1295,7 @@ export default function InboxPage() {
           </nav>
 
           {/* Categories — collapsible, only visible when sidebar expanded */}
-          {sidebarExpanded && (
+          {isSidebarOpen && (
             <div className="mt-5 px-2">
               <button onClick={() => setCategoriesOpen(!categoriesOpen)}
                 className="w-full flex items-center justify-between px-3 mb-1 group">
@@ -1094,7 +1315,7 @@ export default function InboxPage() {
           )}
 
           {/* Labels — collapsible, only visible when sidebar expanded */}
-          {sidebarExpanded && (
+          {isSidebarOpen && (
             <div className="mt-5 px-2 flex-1 overflow-y-auto">
               <div className="flex items-center justify-between px-3 mb-1">
                 <button onClick={() => setLabelsOpen(!labelsOpen)} className="flex items-center gap-1 group">
@@ -1129,6 +1350,44 @@ export default function InboxPage() {
                     </button>
                   ))}
                 </>
+              )}
+            </div>
+          )}
+          {isSidebarOpen && isAuthenticated && (
+            <div className="mt-5 px-2 pb-2 border-t border-gray-100">
+              <button onClick={() => setCalendarOpen(!calendarOpen)}
+                className="w-full flex items-center justify-between px-3 pt-4 mb-1 group">
+                <div className="flex items-center gap-2">
+                  <CalendarDays className="w-3.5 h-3.5 text-blue-500" />
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Calendar</p>
+                </div>
+                {calendarOpen
+                  ? <ChevronDown className="w-3 h-3 text-gray-400 group-hover:text-gray-600" />
+                  : <ChevronRight className="w-3 h-3 text-gray-400 group-hover:text-gray-600" />}
+              </button>
+              {calendarOpen && (
+                <div className="space-y-2 px-3">
+                  {calendarLoading && (
+                    <div className="flex items-center gap-2 text-xs text-gray-500 py-2">
+                      <Loader2 className="w-3 h-3 animate-spin" /> Syncing upcoming events...
+                    </div>
+                  )}
+                  {!calendarLoading && calendarEvents.length === 0 && (
+                    <p className="text-xs text-gray-400 py-2">No upcoming events found.</p>
+                  )}
+                  {!calendarLoading && calendarEvents.slice(0, 3).map(event => (
+                    <a
+                      key={event.id}
+                      href={event.htmlLink ?? '#'}
+                      target={event.htmlLink ? '_blank' : undefined}
+                      rel={event.htmlLink ? 'noreferrer' : undefined}
+                      className="block rounded-xl border border-gray-200 bg-gray-50/80 px-3 py-2.5 hover:border-blue-200 hover:bg-blue-50/60 transition-colors"
+                    >
+                      <p className="text-xs font-semibold text-gray-800 truncate">{event.title}</p>
+                      <p className="text-[11px] text-gray-500 mt-1">{formatCalendarEventLabel(event.start)}</p>
+                    </a>
+                  ))}
+                </div>
               )}
             </div>
           )}
@@ -1348,7 +1607,7 @@ export default function InboxPage() {
                         <div className="flex items-center justify-between mb-3">
                           <div className="flex items-center gap-3">
                             <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-semibold ${
-                              email.from.email.includes('you@')
+                              isOwnEmail(email.from.email)
                                 ? 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white'
                                 : 'bg-gray-100 text-gray-600'
                             }`}>{email.from.name.charAt(0).toUpperCase()}</div>
@@ -1428,6 +1687,8 @@ export default function InboxPage() {
                   isAuthenticated={isAuthenticated}
                   senderName={currentSenderName}
                   recipientName={currentRecipientName}
+                  userEmail={userEmail || undefined}
+                  onSent={(payload) => handleReplySent(selectedThread.id, payload)}
                 />
               )}
             </div>
@@ -1457,6 +1718,7 @@ export default function InboxPage() {
           onClose={() => setShowNewCompose(false)}
           isAuthenticated={isAuthenticated}
           senderName={currentSenderName}
+          onSent={handleNewComposeSent}
         />
       )}
     </div>
