@@ -9,7 +9,7 @@ import {
   Archive, Trash2, AlarmClock, PenLine,
   Wand2, Minimize2, Maximize2, CheckCheck, CornerUpLeft,
   LogIn, LogOut, CalendarPlus, ExternalLink,
-  RefreshCw, Filter, ChevronDown, ChevronRight, ChevronLeft, Plus, PenSquare, CalendarDays
+  RefreshCw, Filter, ChevronDown, ChevronRight, Plus, PenSquare, CalendarDays, Menu
 } from 'lucide-react'
 import NextLink from 'next/link'
 import { Badge } from '@/components/ui/badge'
@@ -1761,18 +1761,6 @@ export default function InboxPage() {
           <Logo size="sm" />
         </NextLink>
 
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleSidebarPinToggle}
-          aria-pressed={sidebarPinned}
-          className="rounded-full"
-          title={sidebarPinned ? 'Collapse navigation' : 'Keep navigation open'}
-        >
-          {sidebarPinned ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-          {sidebarPinned ? 'Collapse nav' : 'Keep nav open'}
-        </Button>
-
         <div className="flex-1 max-w-lg relative">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <Input
@@ -1868,11 +1856,44 @@ export default function InboxPage() {
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar — collapsed (icons only) by default, expands on hover */}
         <aside
+          onMouseEnter={() => {
+            if (!sidebarPinned) setSidebarExpanded(true)
+          }}
+          onMouseLeave={() => {
+            if (!sidebarPinned) setSidebarExpanded(false)
+          }}
           className={`border-r border-gray-200/80 bg-white shrink-0 flex flex-col transition-all duration-200 ease-in-out overflow-hidden ${
             isSidebarOpen ? 'w-60' : 'w-16'
           }`}>
           <ScrollArea className="h-full">
             <div className="py-3">
+          <div className={`mb-3 flex px-2 ${isSidebarOpen ? 'justify-between' : 'justify-center'}`}>
+            <button
+              onClick={handleSidebarPinToggle}
+              aria-pressed={sidebarPinned}
+              title={sidebarPinned ? 'Unpin navigation' : 'Pin navigation open'}
+              className={`inline-flex h-10 items-center rounded-xl border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-900 ${
+                isSidebarOpen ? 'w-full justify-between px-3' : 'w-10 justify-center'
+              }`}
+            >
+              <span className="inline-flex items-center gap-2">
+                <Menu className="h-4 w-4" />
+                {isSidebarOpen && <span className="text-sm font-medium">Navigation</span>}
+              </span>
+              {isSidebarOpen && (
+                <Badge
+                  variant="outline"
+                  className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
+                    sidebarPinned
+                      ? 'border-blue-200 bg-blue-50 text-blue-700'
+                      : 'border-gray-200 bg-gray-50 text-gray-500'
+                  }`}
+                >
+                  {sidebarPinned ? 'Pinned' : 'Hover'}
+                </Badge>
+              )}
+            </button>
+          </div>
           <nav className="space-y-0.5 px-2">
             {sidebarItems.map(item => {
               const count = counts[item.folder]
