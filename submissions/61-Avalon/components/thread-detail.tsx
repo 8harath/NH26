@@ -1,33 +1,38 @@
 'use client'
 
-import { Thread, AnalysisSummary, Priority } from '@/types'
+import { ComprehensiveAnalysis, Thread } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { AlertCircle } from 'lucide-react'
 
 interface ThreadDetailProps {
   thread: Thread
-  analysis: AnalysisSummary | null
+  analysis: ComprehensiveAnalysis | null
   loading: boolean
   error: string | null
   onAnalyze: () => Promise<void>
 }
 
-const priorityConfig = {
+const priorityConfig: Record<ComprehensiveAnalysis['priority'], { label: string; color: string; dotColor: string }> = {
   urgent: {
     label: 'Urgent',
     color: 'bg-red-100 text-red-800 border-red-200',
     dotColor: 'bg-red-500',
   },
-  action: {
-    label: 'Action Required',
+  important: {
+    label: 'Important',
     color: 'bg-amber-100 text-amber-800 border-amber-200',
     dotColor: 'bg-amber-500',
   },
-  fyi: {
-    label: 'For Your Info',
+  normal: {
+    label: 'Normal',
     color: 'bg-blue-100 text-blue-800 border-blue-200',
     dotColor: 'bg-blue-500',
+  },
+  low: {
+    label: 'Low',
+    color: 'bg-slate-100 text-slate-700 border-slate-200',
+    dotColor: 'bg-slate-400',
   },
 }
 
@@ -78,7 +83,7 @@ export function ThreadDetail({ thread, analysis, loading, error, onAnalyze }: Th
                 <span className="font-semibold">{priorityConfig[analysis.priority].label}</span>
               </div>
               <ul className="space-y-2">
-                {analysis.bullets.map((bullet, i) => (
+                {analysis.summary.map((bullet, i) => (
                   <li key={i} className="text-sm flex gap-2">
                     <span className="font-medium">•</span>
                     <span>{bullet}</span>

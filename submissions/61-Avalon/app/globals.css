@@ -153,3 +153,21 @@ html { scroll-behavior: smooth; }
   50% { opacity: 0.6; }
 }
 .animate-pulse-soft { animation: pulse-soft 2s ease-in-out infinite; }
+
+@keyframes float-slow {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(0, -18px, 0); }
+}
+.animate-float-slow { animation: float-slow 9s ease-in-out infinite; }
+
+@keyframes float-reverse {
+  0%, 100% { transform: translate3d(-50%, -50%, 0) scale(1); }
+  50% { transform: translate3d(-50%, calc(-50% + 16px), 0) scale(1.04); }
+}
+.animate-float-reverse { animation: float-reverse 12s ease-in-out infinite; }
+
+@keyframes glow-pulse {
+  0%, 100% { opacity: 0.78; filter: blur(48px); }
+  50% { opacity: 1; filter: blur(60px); }
+}
+.animate-glow-pulse { animation: glow-pulse 8s ease-in-out infinite; }

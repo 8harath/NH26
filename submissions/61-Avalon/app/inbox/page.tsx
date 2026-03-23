@@ -12,8 +12,26 @@ import {
   RefreshCw, Filter, ChevronDown, ChevronRight, ChevronLeft, Plus, PenSquare, CalendarDays
 } from 'lucide-react'
 import NextLink from 'next/link'
+import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { Calendar as DayPickerCalendar } from '@/components/ui/calendar'
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { Logo } from '@/components/logo'
 import { mockThreads } from '@/data/emails'
 import {
@@ -39,7 +57,7 @@ function saveJson<T>(key: string, v: T) {
 
 function loadAnalyses(): Record<string, ComprehensiveAnalysis> {
   const data = loadJson<Record<string, ComprehensiveAnalysis>>(LS_ANALYSES, {})
-  const first = Object.values(data)[0] as Record<string, unknown> | undefined
+  const first = Object.values(data)[0] as unknown as Record<string, unknown> | undefined
   if (first && !('summary' in first && 'smartReplies' in first)) {
     localStorage.removeItem(LS_ANALYSES)
     return {}
@@ -145,9 +163,349 @@ const sidebarItems: { folder: SidebarFolder; icon: typeof Inbox; label: string }
   { folder: 'snoozed', icon: AlarmClock, label: 'Snoozed' },
   { folder: 'sent', icon: Send, label: 'Sent' },
   { folder: 'drafts', icon: PenLine, label: 'Drafts' },
+  { folder: 'calendar', icon: CalendarDays, label: 'Calendar' },
   { folder: 'trash', icon: Trash2, label: 'Trash' },
   { folder: 'all', icon: Mail, label: 'All Mail' },
 ]
+
+const folderMeta: Record<SidebarFolder, {
+  label: string
+  emptyTitle: string
+  emptyDescription: string
+}> = {
+  inbox: {
+    label: 'Inbox',
+    emptyTitle: 'Inbox is clear',
+    emptyDescription: 'No conversations are waiting here right now. New mail will appear as soon as it arrives.',
+  },
+  starred: {
+    label: 'Starred',
+    emptyTitle: 'No starred conversations',
+    emptyDescription: 'Important threads you star will stay collected here for quick access.',
+  },
+  snoozed: {
+    label: 'Snoozed',
+    emptyTitle: 'Nothing is snoozed',
+    emptyDescription: 'Snoozed emails will reappear here until their reminder time is over.',
+  },
+  sent: {
+    label: 'Sent',
+    emptyTitle: 'No sent mail yet',
+    emptyDescription: 'Messages you send from MailMate will be available here so you can review the full thread.',
+  },
+  drafts: {
+    label: 'Drafts',
+    emptyTitle: 'No drafts saved',
+    emptyDescription: 'Draft replies and unfinished messages will show up here instead of disappearing.',
+  },
+  calendar: {
+    label: 'Calendar',
+    emptyTitle: 'No calendar events found',
+    emptyDescription: 'Connect Google Calendar or refresh the sync to load your upcoming schedule and meeting context.',
+  },
+  trash: {
+    label: 'Trash',
+    emptyTitle: 'Trash is empty',
+    emptyDescription: 'Deleted conversations land here. If nothing is shown, there is nothing to clean up.',
+  },
+  all: {
+    label: 'All Mail',
+    emptyTitle: 'No mail available',
+    emptyDescription: 'This workspace does not have any visible conversations yet.',
+  },
+}
+
+function isSameDay(left: Date, right: Date) {
+  return left.toDateString() === right.toDateString()
+}
+
+function FolderEmptyState({
+  folder,
+  search,
+  hasFilters,
+  isAuthenticated,
+  compact = false,
+  onClearSearch,
+  onClearFilters,
+  onRefresh,
+}: {
+  folder: SidebarFolder
+  search: string
+  hasFilters: boolean
+  isAuthenticated: boolean
+  compact?: boolean
+  onClearSearch: () => void
+  onClearFilters: () => void
+  onRefresh: () => void
+}) {
+  const iconMap: Record<SidebarFolder, typeof Inbox> = {
+    inbox: Inbox,
+    starred: Star,
+    snoozed: AlarmClock,
+    sent: Send,
+    drafts: PenLine,
+    calendar: CalendarDays,
+    trash: Trash2,
+    all: Mail,
+  }
+
+  const Icon = iconMap[folder]
+  const searchLabel = search.trim()
+  const hasSearch = searchLabel.length > 0
+  const title = hasSearch || hasFilters
+    ? 'Nothing matches this view'
+    : folderMeta[folder].emptyTitle
+  const description = hasSearch || hasFilters
+    ? `MailMate could not find conversations in ${folderMeta[folder].label.toLowerCase()} for the current search or filters.`
+    : folderMeta[folder].emptyDescription
+
+  return (
+    <Empty className={compact ? 'gap-4 rounded-2xl border-none px-4 py-12' : 'min-h-full gap-5 rounded-[1.75rem] border border-dashed border-gray-200 bg-white/80 p-10 shadow-sm'}>
+      <EmptyHeader className="max-w-md">
+        <EmptyMedia variant="icon" className={compact ? 'size-12 rounded-2xl bg-gray-100 text-gray-500' : 'size-14 rounded-3xl bg-gradient-to-br from-blue-50 to-cyan-100 text-blue-700'}>
+          <Icon className={compact ? 'size-6' : 'size-7'} />
+        </EmptyMedia>
+        <EmptyTitle className={compact ? 'text-base text-gray-700' : 'text-2xl text-gray-900'}>{title}</EmptyTitle>
+        <EmptyDescription className={compact ? 'text-sm text-gray-500' : 'text-base text-gray-500'}>
+          {description}
+        </EmptyDescription>
+      </EmptyHeader>
+
+      <EmptyContent className={compact ? 'max-w-xs gap-2' : 'max-w-md gap-3'}>
+        {hasSearch && (
+          <Badge variant="outline" className="rounded-full border-blue-200 bg-blue-50 px-3 py-1 text-blue-700">
+            Search: {searchLabel}
+          </Badge>
+        )}
+        {hasFilters && (
+          <Badge variant="outline" className="rounded-full border-amber-200 bg-amber-50 px-3 py-1 text-amber-700">
+            Filters active
+          </Badge>
+        )}
+        <div className={`flex ${compact ? 'flex-col' : 'flex-wrap'} items-center justify-center gap-2`}>
+          {hasSearch && (
+            <Button variant="outline" size={compact ? 'sm' : 'default'} className="rounded-full" onClick={onClearSearch}>
+              Clear search
+            </Button>
+          )}
+          {hasFilters && (
+            <Button variant="outline" size={compact ? 'sm' : 'default'} className="rounded-full" onClick={onClearFilters}>
+              Clear filters
+            </Button>
+          )}
+          {isAuthenticated && !hasSearch && !hasFilters && folder !== 'calendar' && (
+            <Button variant="outline" size={compact ? 'sm' : 'default'} className="rounded-full" onClick={onRefresh}>
+              Refresh mailbox
+            </Button>
+          )}
+        </div>
+      </EmptyContent>
+    </Empty>
+  )
+}
+
+function CalendarWorkspace({
+  events,
+  loading,
+  error,
+  selectedDate,
+  onDateSelect,
+  onRefresh,
+  onConnect,
+  isAuthenticated,
+}: {
+  events: SyncedCalendarEvent[]
+  loading: boolean
+  error: string | null
+  selectedDate: Date
+  onDateSelect: (date: Date | undefined) => void
+  onRefresh: () => void
+  onConnect: () => void
+  isAuthenticated: boolean
+}) {
+  const upcomingEvents = [...events].sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
+  const selectedEvents = upcomingEvents.filter(event => isSameDay(new Date(event.start), selectedDate))
+  const nextEvent = upcomingEvents[0] ?? null
+  const todayCount = upcomingEvents.filter(event => isSameDay(new Date(event.start), new Date())).length
+
+  return (
+    <div className="flex-1 overflow-hidden bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.08),_transparent_35%),radial-gradient(circle_at_bottom_right,_rgba(6,182,212,0.08),_transparent_30%),linear-gradient(180deg,#f8fbff_0%,#f9fafb_100%)] p-6">
+      <div className="grid h-full gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
+        <Card className="border-gray-200/80 bg-white/90 shadow-xl shadow-blue-100/30">
+          <CardHeader>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <CardTitle className="text-xl text-gray-900">Calendar cockpit</CardTitle>
+                <CardDescription className="mt-1 text-gray-500">
+                  Review upcoming meetings, focus days, and event context without leaving the inbox.
+                </CardDescription>
+              </div>
+              <Button variant="outline" size="sm" className="rounded-full" onClick={isAuthenticated ? onRefresh : onConnect}>
+                {isAuthenticated ? 'Refresh' : 'Connect'}
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <div className="grid grid-cols-3 gap-3">
+              <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-600">Upcoming</p>
+                <p className="mt-2 text-2xl font-bold text-blue-950">{upcomingEvents.length}</p>
+              </div>
+              <div className="rounded-2xl border border-cyan-100 bg-cyan-50/70 p-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-600">Today</p>
+                <p className="mt-2 text-2xl font-bold text-cyan-950">{todayCount}</p>
+              </div>
+              <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-600">Next</p>
+                <p className="mt-2 text-sm font-bold leading-tight text-emerald-950">
+                  {nextEvent ? formatCalendarEventLabel(nextEvent.start) : 'No event'}
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-[1.5rem] border border-gray-200 bg-white/90 p-3 shadow-sm">
+              <DayPickerCalendar
+                mode="single"
+                selected={selectedDate}
+                onSelect={onDateSelect}
+                className="w-full"
+                classNames={{
+                  root: 'w-full',
+                  months: 'w-full',
+                  month: 'w-full',
+                  table: 'w-full',
+                }}
+              />
+            </div>
+
+            {nextEvent && (
+              <div className="rounded-[1.5rem] border border-gray-200 bg-gray-50/80 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500">Next meeting</p>
+                    <p className="mt-2 text-sm font-semibold text-gray-900">{nextEvent.title}</p>
+                    <p className="mt-1 text-xs text-gray-500">{formatCalendarEventLabel(nextEvent.start)}</p>
+                  </div>
+                  <Badge variant="outline" className="rounded-full border-emerald-200 bg-emerald-50 text-emerald-700">
+                    {nextEvent.attendees.length} attendee{nextEvent.attendees.length === 1 ? '' : 's'}
+                  </Badge>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="min-h-0 overflow-hidden border-gray-200/80 bg-white/92 shadow-xl shadow-cyan-100/20">
+          <CardHeader className="border-b border-gray-100">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <CardTitle className="text-xl text-gray-900">
+                  Agenda for {selectedDate.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}
+                </CardTitle>
+                <CardDescription className="mt-1 text-gray-500">
+                  Upcoming events stay linked to Google Calendar so users can jump straight into the original booking.
+                </CardDescription>
+              </div>
+              {loading && <Loader2 className="mt-1 h-4 w-4 animate-spin text-blue-500" />}
+            </div>
+          </CardHeader>
+
+          <CardContent className="flex min-h-0 flex-1 px-0 pb-0">
+            {!isAuthenticated ? (
+              <Empty className="m-6 flex-1 rounded-[1.5rem] border border-dashed border-gray-200 bg-gray-50/60">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon" className="size-14 rounded-3xl bg-blue-50 text-blue-700">
+                    <CalendarDays className="size-7" />
+                  </EmptyMedia>
+                  <EmptyTitle>Connect Google Calendar</EmptyTitle>
+                  <EmptyDescription>
+                    Calendar sync is ready, but the app needs your Google session before it can pull live events.
+                  </EmptyDescription>
+                </EmptyHeader>
+                <EmptyContent>
+                  <Button className="rounded-full" onClick={onConnect}>Connect Gmail and Calendar</Button>
+                </EmptyContent>
+              </Empty>
+            ) : error ? (
+              <Empty className="m-6 flex-1 rounded-[1.5rem] border border-dashed border-red-200 bg-red-50/40">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon" className="size-14 rounded-3xl bg-red-100 text-red-700">
+                    <AlertTriangle className="size-7" />
+                  </EmptyMedia>
+                  <EmptyTitle>Calendar sync needs attention</EmptyTitle>
+                  <EmptyDescription>{error}</EmptyDescription>
+                </EmptyHeader>
+                <EmptyContent>
+                  <Button variant="outline" className="rounded-full" onClick={onRefresh}>Try again</Button>
+                </EmptyContent>
+              </Empty>
+            ) : selectedEvents.length === 0 ? (
+              <Empty className="m-6 flex-1 rounded-[1.5rem] border border-dashed border-gray-200 bg-gray-50/60">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon" className="size-14 rounded-3xl bg-cyan-50 text-cyan-700">
+                    <CalendarDays className="size-7" />
+                  </EmptyMedia>
+                  <EmptyTitle>No meetings on this date</EmptyTitle>
+                  <EmptyDescription>
+                    The selected day is clear. Use the calendar to inspect another day or refresh to check for new invites.
+                  </EmptyDescription>
+                </EmptyHeader>
+                <EmptyContent>
+                  <Button variant="outline" className="rounded-full" onClick={onRefresh}>Refresh events</Button>
+                </EmptyContent>
+              </Empty>
+            ) : (
+              <ScrollArea className="h-full w-full">
+                <div className="space-y-4 p-6">
+                  {selectedEvents.map(event => (
+                    <div
+                      key={event.id}
+                      className="rounded-[1.5rem] border border-gray-200 bg-[linear-gradient(135deg,rgba(239,246,255,0.9),rgba(255,255,255,0.95))] p-5 shadow-sm"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="text-lg font-semibold text-gray-900">{event.title}</h3>
+                            <Badge variant="outline" className="rounded-full border-blue-200 bg-blue-50 text-blue-700">
+                              {formatCalendarEventLabel(event.start)}
+                            </Badge>
+                          </div>
+                          <p className="mt-2 text-sm text-gray-500">
+                            Ends {formatCalendarEventLabel(event.end)}
+                          </p>
+                          <div className="mt-4 flex flex-wrap gap-2">
+                            {event.attendees.length > 0 ? event.attendees.map(attendee => (
+                              <Badge key={attendee} variant="outline" className="rounded-full border-gray-200 bg-white text-gray-600">
+                                <Users className="h-3 w-3" />
+                                {attendee}
+                              </Badge>
+                            )) : (
+                              <Badge variant="outline" className="rounded-full border-gray-200 bg-white text-gray-600">
+                                No attendee list
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                        {event.htmlLink && (
+                          <Button asChild variant="outline" size="sm" className="rounded-full">
+                            <a href={event.htmlLink} target="_blank" rel="noreferrer">
+                              <ExternalLink className="h-4 w-4" />
+                              Open
+                            </a>
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  )
+}
 
 // ─── Small components ───────────────────────────────────────────
 
@@ -455,7 +813,7 @@ function FollowUpSection({ needed, suggestion }: { needed: boolean; suggestion: 
 
 // ─── Compose panel with AI writing tools ────────────────────────
 
-function ComposePanel({ thread, initialText, meta, onUpdateDraft, onClose, isAuthenticated, senderName, recipientName }: {
+function ComposePanel({ thread, initialText, meta, onUpdateDraft, onClose, isAuthenticated, senderName, recipientName, userEmail, onSent }: {
   thread: Thread; initialText: string; meta: ThreadMeta
   onUpdateDraft: (text: string) => void; onClose: () => void; isAuthenticated?: boolean
   senderName?: string; recipientName?: string
@@ -820,11 +1178,14 @@ export default function InboxPage() {
   const [filterRead, setFilterRead] = useState<FilterRead>('all')
   const [calendarEvents, setCalendarEvents] = useState<SyncedCalendarEvent[]>([])
   const [calendarLoading, setCalendarLoading] = useState(false)
+  const [calendarError, setCalendarError] = useState<string | null>(null)
+  const [gmailError, setGmailError] = useState<string | null>(null)
+  const [calendarDate, setCalendarDate] = useState<Date>(new Date())
   const filterRef = useRef<HTMLDivElement>(null)
 
-  const selectedThread = threads.find(t => t.id === selectedId) ?? null
   const getMeta = (id: string): ThreadMeta => metas[id] ?? defaultMeta
   const isSidebarOpen = sidebarPinned || sidebarExpanded
+  const isCalendarView = folder === 'calendar'
   const isOwnEmail = useCallback((email: string) => {
     const normalized = normalizeEmail(email)
     return userEmail ? normalized === normalizeEmail(userEmail) : normalized.includes('you@')
@@ -846,17 +1207,23 @@ export default function InboxPage() {
   const fetchGmailThreads = useCallback(async (query?: string) => {
     if (!isAuthenticated) return
     setGmailLoading(true)
+    setGmailError(null)
     try {
       const url = new URL('/api/gmail/threads', window.location.origin)
       url.searchParams.set('q', query ? `in:anywhere ${query}` : 'in:anywhere')
       const res = await fetch(url.toString())
-      if (res.ok) {
-        const data = await res.json()
-        if (data.threads?.length > 0) {
-          setThreads(data.threads as Thread[])
-        }
+      if (!res.ok) throw new Error('Mail sync failed')
+
+      const data = await res.json()
+      if (Array.isArray(data.threads)) {
+        setThreads(data.threads as Thread[])
+      } else {
+        setThreads([])
       }
-    } catch (err) { console.error('Gmail fetch error:', err) }
+    } catch (err) {
+      console.error('Gmail fetch error:', err)
+      setGmailError('Mail sync failed. You can keep using cached conversations and try refreshing again.')
+    }
     finally { setGmailLoading(false) }
   }, [isAuthenticated])
 
@@ -871,7 +1238,9 @@ export default function InboxPage() {
     setMetas(merged)
     saveJson(LS_META, merged)
     setAllUserLabels(loadJson<string[]>(LS_LABELS, ['Important', 'Follow-up', 'Receipts', 'Travel', 'Project']))
-    setSidebarPinned(loadJson<boolean>(LS_SIDEBAR_PINNED, false))
+    const storedSidebarPinned = loadJson<boolean>(LS_SIDEBAR_PINNED, true)
+    setSidebarPinned(storedSidebarPinned)
+    setSidebarExpanded(storedSidebarPinned)
   }, [])
 
   useEffect(() => {
@@ -888,10 +1257,12 @@ export default function InboxPage() {
   const fetchCalendarEvents = useCallback(async () => {
     if (!isAuthenticated) {
       setCalendarEvents([])
+      setCalendarError(null)
       return
     }
 
     setCalendarLoading(true)
+    setCalendarError(null)
     try {
       const res = await fetch('/api/calendar/events')
       if (!res.ok) throw new Error('Calendar sync failed')
@@ -900,6 +1271,7 @@ export default function InboxPage() {
     } catch (err) {
       console.error('Calendar fetch error:', err)
       setCalendarEvents([])
+      setCalendarError('Calendar sync failed. Refresh to retry or reconnect your Google account.')
     } finally {
       setCalendarLoading(false)
     }
@@ -910,6 +1282,7 @@ export default function InboxPage() {
       fetchCalendarEvents()
     } else {
       setCalendarEvents([])
+      setCalendarError(null)
     }
   }, [isAuthenticated, isAuthLoading, fetchCalendarEvents])
 
@@ -1125,12 +1498,26 @@ export default function InboxPage() {
   const activeFiltersCount = (filterPriority !== 'all' ? 1 : 0) + (filterCategory !== 'all' ? 1 : 0) + (filterRead !== 'all' ? 1 : 0)
 
   const clearFilters = () => { setFilterPriority('all'); setFilterCategory('all'); setFilterRead('all') }
+  const clearSearch = () => setSearch('')
+
+  const handleFolderChange = useCallback((nextFolder: SidebarFolder) => {
+    setFolder(nextFolder)
+    setShowCompose(false)
+    setComposeInitial('')
+    setShowFilterMenu(false)
+    if (nextFolder === 'calendar') {
+      setActiveTab('emails')
+    }
+  }, [])
 
   // Filter threads by folder + search + filters
   const filteredThreads = threads.filter(t => {
+    if (folder === 'calendar') return false
+
     const m = getMeta(t.id)
     const isGmailThread = Array.isArray(t.gmailLabels) && t.gmailLabels.length > 0
     const isSentThread = isGmailThread ? hasGmailLabel(t, 'SENT') : t.emails.some(e => isOwnEmail(e.from.email))
+    const analysis = analyses[t.id]
 
     switch (folder) {
       case 'inbox':
@@ -1149,16 +1536,33 @@ export default function InboxPage() {
 
     if (search) {
       const q = search.toLowerCase()
-      if (!t.subject.toLowerCase().includes(q) && !t.from.name.toLowerCase().includes(q) && !t.preview.toLowerCase().includes(q)) return false
+      const searchableValues = [
+        t.subject,
+        t.from.name,
+        t.from.email,
+        t.preview,
+        t.category,
+        ...t.emails.flatMap(email => [
+          email.subject,
+          email.body,
+          email.from.name,
+          email.from.email,
+          ...email.to.flatMap(recipient => [recipient.name, recipient.email]),
+        ]),
+        ...m.userLabels,
+        ...(analysis?.labels ?? []),
+        analysis?.category ?? '',
+      ]
+
+      if (!searchableValues.some(value => value.toLowerCase().includes(q))) return false
     }
 
     // Apply filters
     if (filterRead === 'read' && !m.read) return false
     if (filterRead === 'unread' && m.read) return false
 
-    const analysis = analyses[t.id]
-    if (filterPriority !== 'all' && analysis && analysis.priority !== filterPriority) return false
-    if (filterCategory !== 'all' && analysis && analysis.category !== filterCategory) return false
+    if (filterPriority !== 'all' && (!analysis || analysis.priority !== filterPriority)) return false
+    if (filterCategory !== 'all' && (!analysis || analysis.category !== filterCategory)) return false
 
     return true
   })
@@ -1180,8 +1584,31 @@ export default function InboxPage() {
     return isSentThread && !getMeta(t.id).trashed
   }).length
 
-  const selectedAnalysis = selectedId ? analyses[selectedId] : null
-  const isLoadingSelected = selectedId ? loadingThreads.has(selectedId) : false
+  const selectedThread = filteredThreads.find(t => t.id === selectedId) ?? null
+  const selectedAnalysis = selectedThread ? analyses[selectedThread.id] : null
+  const isLoadingSelected = selectedThread ? loadingThreads.has(selectedThread.id) : false
+
+  useEffect(() => {
+    if (isCalendarView) {
+      if (showCompose) setShowCompose(false)
+      return
+    }
+
+    if (filteredThreads.length === 0) {
+      if (selectedId !== null) setSelectedId(null)
+      if (showCompose) setShowCompose(false)
+      if (composeInitial) setComposeInitial('')
+      if (activeTab !== 'emails') setActiveTab('emails')
+      return
+    }
+
+    if (!selectedId || !filteredThreads.some(thread => thread.id === selectedId)) {
+      setSelectedId(filteredThreads[0].id)
+      if (showCompose) setShowCompose(false)
+      if (composeInitial) setComposeInitial('')
+      if (activeTab !== 'emails') setActiveTab('emails')
+    }
+  }, [activeTab, composeInitial, filteredThreads, isCalendarView, selectedId, showCompose])
 
   // Determine sender and recipient names for the compose panel
   const currentSenderName = userName || undefined
@@ -1190,17 +1617,37 @@ export default function InboxPage() {
   return (
     <div className="h-screen flex flex-col bg-gray-50/50">
       {/* Top bar */}
-      <header className="border-b border-gray-200/80 bg-white/80 backdrop-blur-xl h-14 flex items-center px-4 gap-4 shrink-0 shadow-sm shadow-gray-100/50">
+      <header className="border-b border-gray-200/80 bg-white/80 backdrop-blur-xl h-16 flex items-center px-4 gap-4 shrink-0 shadow-sm shadow-gray-100/50">
         <NextLink href="/" className="hover:opacity-80 transition-opacity">
           <Logo size="sm" />
         </NextLink>
 
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleSidebarPinToggle}
+          aria-pressed={sidebarPinned}
+          className="rounded-full"
+          title={sidebarPinned ? 'Collapse navigation' : 'Keep navigation open'}
+        >
+          {sidebarPinned ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+          {sidebarPinned ? 'Collapse nav' : 'Keep nav open'}
+        </Button>
+
         <div className="flex-1 max-w-lg relative">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <Input value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Search emails..."
-            className="pl-10 text-sm h-10 bg-gray-50/80 border-gray-200 rounded-xl focus:bg-white transition-colors" />
-          {search && <button onClick={() => setSearch('')} className="absolute right-3.5 top-1/2 -translate-y-1/2"><X className="w-3.5 h-3.5 text-gray-400" /></button>}
+          <Input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder={isCalendarView ? 'Calendar workspace is active' : 'Search emails, contacts, labels, and thread content...'}
+            disabled={isCalendarView}
+            className="pl-10 text-sm h-10 bg-gray-50/80 border-gray-200 rounded-xl focus:bg-white transition-colors disabled:cursor-not-allowed disabled:opacity-70"
+          />
+          {search && !isCalendarView && (
+            <button onClick={clearSearch} className="absolute right-3.5 top-1/2 -translate-y-1/2">
+              <X className="w-3.5 h-3.5 text-gray-400" />
+            </button>
+          )}
         </div>
 
         <div className="flex items-center gap-2 ml-auto">
@@ -1209,41 +1656,41 @@ export default function InboxPage() {
           {/* Refresh button */}
           {isAuthenticated && (
             <Button variant="outline" size="sm" onClick={handleRefresh} disabled={gmailLoading}
-              className="rounded-xl" title="Refresh emails">
+              className="rounded-full" title="Refresh emails">
               <RefreshCw className={`w-4 h-4 ${gmailLoading ? 'animate-spin' : ''}`} />
             </Button>
           )}
 
           {/* Compose new email */}
           <Button variant="outline" size="sm" onClick={() => setShowNewCompose(true)}
-            className="rounded-xl">
+            className="rounded-full">
             <PenSquare className="w-4 h-4 mr-1.5" /> Compose
           </Button>
 
           {isAuthenticated && (
             <>
-              <span className="text-[11px] text-emerald-700 font-semibold bg-emerald-50 px-3 py-1.5 rounded-full flex items-center gap-1.5 border border-emerald-200/60">
+              <Badge variant="outline" className="rounded-full border-emerald-200 bg-emerald-50 px-3 py-1.5 text-emerald-700">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Gmail Connected
-              </span>
-              <span className="text-[11px] text-blue-700 font-semibold bg-blue-50 px-3 py-1.5 rounded-full flex items-center gap-1.5 border border-blue-200/60">
+              </Badge>
+              <Badge variant="outline" className="rounded-full border-blue-200 bg-blue-50 px-3 py-1.5 text-blue-700">
                 {calendarLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <CalendarDays className="w-3 h-3" />}
                 {calendarEvents[0] ? `Calendar synced · ${formatCalendarEventLabel(calendarEvents[0].start)}` : 'Calendar synced'}
-              </span>
+              </Badge>
             </>
           )}
 
           <Button variant="outline" size="sm" onClick={() => setShowChat(!showChat)}
-            className={`rounded-xl ${showChat ? 'bg-blue-50 border-blue-200 text-blue-700' : ''}`}>
+            className={`rounded-full ${showChat ? 'bg-blue-50 border-blue-200 text-blue-700' : ''}`}>
             <Bot className="w-4 h-4 mr-1.5" /> AI Chat
           </Button>
 
           {isAuthenticated ? (
-            <Button variant="outline" size="sm" onClick={() => signOut()} className="rounded-xl">
+            <Button variant="outline" size="sm" onClick={() => signOut()} className="rounded-full">
               <LogOut className="w-4 h-4 mr-1.5" /> {session?.user?.name?.split(' ')[0] ?? 'Sign out'}
             </Button>
           ) : (
             <Button variant="outline" size="sm" onClick={() => signIn('google', { callbackUrl: '/inbox' })}
-              className="rounded-xl border-blue-200 text-blue-700 hover:bg-blue-50">
+              className="rounded-full border-blue-200 text-blue-700 hover:bg-blue-50">
               <LogIn className="w-4 h-4 mr-1.5" /> Connect Gmail
             </Button>
           )}
@@ -1272,7 +1719,7 @@ export default function InboxPage() {
               const count = counts[item.folder]
               const active = folder === item.folder
               return (
-                <button key={item.folder} onClick={() => setFolder(item.folder)}
+                <button key={item.folder} onClick={() => handleFolderChange(item.folder)}
                   title={!isSidebarOpen ? item.label : undefined}
                   className={`relative w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all ${
                     active
@@ -1305,7 +1752,7 @@ export default function InboxPage() {
                   : <ChevronRight className="w-3 h-3 text-gray-400 group-hover:text-gray-600" />}
               </button>
               {categoriesOpen && Object.entries(categoryConfig).map(([key, val]) => (
-                <button key={key} onClick={() => { setFolder('all'); setSearch(key) }}
+                <button key={key} onClick={() => { handleFolderChange('all'); clearSearch(); setFilterCategory(key as FilterCategory) }}
                   className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-colors font-medium">
                   <span className={`w-2.5 h-2.5 rounded-full ${val.dot}`} />
                   {val.label}
@@ -1343,7 +1790,7 @@ export default function InboxPage() {
                     </div>
                   )}
                   {allUserLabels.map(label => (
-                    <button key={label} onClick={() => { setFolder('all'); setSearch(label.toLowerCase()) }}
+                    <button key={label} onClick={() => { handleFolderChange('all'); setSearch(label.toLowerCase()) }}
                       className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-colors font-medium">
                       <Tag className="w-3.5 h-3.5 text-gray-400" />
                       {label}
@@ -1353,7 +1800,7 @@ export default function InboxPage() {
               )}
             </div>
           )}
-          {isSidebarOpen && isAuthenticated && (
+          {isSidebarOpen && (
             <div className="mt-5 px-2 pb-2 border-t border-gray-100">
               <button onClick={() => setCalendarOpen(!calendarOpen)}
                 className="w-full flex items-center justify-between px-3 pt-4 mb-1 group">
@@ -1367,15 +1814,25 @@ export default function InboxPage() {
               </button>
               {calendarOpen && (
                 <div className="space-y-2 px-3">
+                  <Button variant="outline" size="sm" className="w-full rounded-xl justify-start" onClick={() => handleFolderChange('calendar')}>
+                    <CalendarDays className="w-4 h-4" />
+                    Open calendar workspace
+                  </Button>
+                  {!isAuthenticated && (
+                    <p className="text-xs text-gray-400 py-1">Connect Google to load live events here.</p>
+                  )}
                   {calendarLoading && (
                     <div className="flex items-center gap-2 text-xs text-gray-500 py-2">
                       <Loader2 className="w-3 h-3 animate-spin" /> Syncing upcoming events...
                     </div>
                   )}
-                  {!calendarLoading && calendarEvents.length === 0 && (
+                  {!calendarLoading && calendarError && (
+                    <p className="text-xs text-red-500 py-2">{calendarError}</p>
+                  )}
+                  {!calendarLoading && !calendarError && isAuthenticated && calendarEvents.length === 0 && (
                     <p className="text-xs text-gray-400 py-2">No upcoming events found.</p>
                   )}
-                  {!calendarLoading && calendarEvents.slice(0, 3).map(event => (
+                  {!calendarLoading && !calendarError && calendarEvents.slice(0, 3).map(event => (
                     <a
                       key={event.id}
                       href={event.htmlLink ?? '#'}
@@ -1393,125 +1850,167 @@ export default function InboxPage() {
           )}
         </aside>
 
-        {/* Thread list */}
-        <div className="w-80 border-r border-gray-200/80 flex flex-col shrink-0 bg-white">
-          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">
-              {filteredThreads.length} conversation{filteredThreads.length !== 1 ? 's' : ''}
-            </span>
-            <div className="flex items-center gap-1.5">
-              {/* Filter button */}
-              <div ref={filterRef} className="relative">
-                <button onClick={() => setShowFilterMenu(!showFilterMenu)}
-                  className={`p-1.5 rounded-lg transition-colors ${showFilterMenu || activeFiltersCount > 0 ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-100 text-gray-400'}`}
-                  title="Filters">
-                  <Filter className="w-3.5 h-3.5" />
-                  {activeFiltersCount > 0 && (
-                    <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-blue-600 text-white text-[9px] font-bold flex items-center justify-center">
-                      {activeFiltersCount}
-                    </span>
-                  )}
-                </button>
-                {showFilterMenu && (
-                  <div className="absolute right-0 top-full mt-1.5 bg-white border border-gray-200 rounded-xl shadow-xl py-3 px-4 z-30 w-56">
-                    <div className="flex items-center justify-between mb-3">
-                      <p className="text-xs font-bold text-gray-700">Filters</p>
+        {!isCalendarView && (
+          <div className="w-80 border-r border-gray-200/80 flex flex-col shrink-0 bg-white">
+            <div className="px-4 py-3 border-b border-gray-100 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+                  {filteredThreads.length} conversation{filteredThreads.length !== 1 ? 's' : ''}
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <div ref={filterRef} className="relative">
+                    <button onClick={() => setShowFilterMenu(!showFilterMenu)}
+                      className={`p-1.5 rounded-lg transition-colors ${showFilterMenu || activeFiltersCount > 0 ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-100 text-gray-400'}`}
+                      title="Filters">
+                      <Filter className="w-3.5 h-3.5" />
                       {activeFiltersCount > 0 && (
-                        <button onClick={clearFilters} className="text-[10px] text-blue-600 font-semibold hover:underline">Clear all</button>
+                        <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-blue-600 text-white text-[9px] font-bold flex items-center justify-center">
+                          {activeFiltersCount}
+                        </span>
                       )}
-                    </div>
+                    </button>
+                    {showFilterMenu && (
+                      <div className="absolute right-0 top-full mt-1.5 bg-white border border-gray-200 rounded-xl shadow-xl py-3 px-4 z-30 w-56">
+                        <div className="flex items-center justify-between mb-3">
+                          <p className="text-xs font-bold text-gray-700">Filters</p>
+                          {activeFiltersCount > 0 && (
+                            <button onClick={clearFilters} className="text-[10px] text-blue-600 font-semibold hover:underline">Clear all</button>
+                          )}
+                        </div>
 
-                    {/* Read status filter */}
-                    <div className="mb-3">
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Status</p>
-                      <div className="flex gap-1 flex-wrap">
-                        {(['all', 'unread', 'read'] as FilterRead[]).map(v => (
-                          <button key={v} onClick={() => setFilterRead(v)}
-                            className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg transition-all ${
-                              filterRead === v ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                            }`}>
-                            {v === 'all' ? 'All' : v === 'unread' ? 'Unread' : 'Read'}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
+                        <div className="mb-3">
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Status</p>
+                          <div className="flex gap-1 flex-wrap">
+                            {(['all', 'unread', 'read'] as FilterRead[]).map(v => (
+                              <button key={v} onClick={() => setFilterRead(v)}
+                                className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg transition-all ${
+                                  filterRead === v ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                }`}>
+                                {v === 'all' ? 'All' : v === 'unread' ? 'Unread' : 'Read'}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
 
-                    {/* Priority filter */}
-                    <div className="mb-3">
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Priority</p>
-                      <div className="flex gap-1 flex-wrap">
-                        {(['all', 'urgent', 'important', 'normal', 'low'] as FilterPriority[]).map(v => (
-                          <button key={v} onClick={() => setFilterPriority(v)}
-                            className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg transition-all capitalize ${
-                              filterPriority === v ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                            }`}>
-                            {v}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
+                        <div className="mb-3">
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Priority</p>
+                          <div className="flex gap-1 flex-wrap">
+                            {(['all', 'urgent', 'important', 'normal', 'low'] as FilterPriority[]).map(v => (
+                              <button key={v} onClick={() => setFilterPriority(v)}
+                                className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg transition-all capitalize ${
+                                  filterPriority === v ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                }`}>
+                                {v}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
 
-                    {/* Category filter */}
-                    <div>
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Category</p>
-                      <div className="flex gap-1 flex-wrap">
-                        {(['all', 'work', 'personal', 'finance', 'updates', 'spam'] as FilterCategory[]).map(v => (
-                          <button key={v} onClick={() => setFilterCategory(v)}
-                            className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg transition-all capitalize ${
-                              filterCategory === v ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                            }`}>
-                            {v}
-                          </button>
-                        ))}
+                        <div>
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Category</p>
+                          <div className="flex gap-1 flex-wrap">
+                            {(['all', 'work', 'personal', 'finance', 'updates', 'spam'] as FilterCategory[]).map(v => (
+                              <button key={v} onClick={() => setFilterCategory(v)}
+                                className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg transition-all capitalize ${
+                                  filterCategory === v ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                }`}>
+                                {v}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
-                )}
+
+                  {isAuthenticated && (
+                    <button onClick={handleRefresh} disabled={gmailLoading}
+                      className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition-colors" title="Refresh">
+                      <RefreshCw className={`w-3.5 h-3.5 ${gmailLoading ? 'animate-spin' : ''}`} />
+                    </button>
+                  )}
+                </div>
               </div>
 
-              {/* Refresh button for thread list */}
-              {isAuthenticated && (
-                <button onClick={handleRefresh} disabled={gmailLoading}
-                  className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition-colors" title="Refresh">
-                  <RefreshCw className={`w-3.5 h-3.5 ${gmailLoading ? 'animate-spin' : ''}`} />
-                </button>
-              )}
-            </div>
-          </div>
-          <div className="flex-1 overflow-y-auto">
-            {filteredThreads.map(t => (
-              <ThreadListItem key={t.id} thread={t} selected={t.id === selectedId}
-                analysis={analyses[t.id]} meta={getMeta(t.id)}
-                onSelect={() => handleSelect(t.id)} onStar={() => handleStar(t.id)} />
-            ))}
-            {filteredThreads.length === 0 && (
-              <div className="py-16 text-center text-gray-400 text-sm">
-                <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
-                  <Inbox className="w-7 h-7 text-gray-300" />
-                </div>
-                <p className="font-medium text-gray-500">
-                  {activeFiltersCount > 0 ? 'No emails match filters' :
-                   folder === 'trash' ? 'Trash is empty' : folder === 'starred' ? 'No starred emails' : folder === 'drafts' ? 'No drafts' : 'No emails found'}
-                </p>
+              <div className="flex flex-wrap gap-2">
+                <Badge variant="outline" className="rounded-full border-gray-200 bg-gray-50 text-gray-600">
+                  {folderMeta[folder].label}
+                </Badge>
+                {search && (
+                  <Badge variant="outline" className="rounded-full border-blue-200 bg-blue-50 text-blue-700">
+                    Search active
+                  </Badge>
+                )}
                 {activeFiltersCount > 0 && (
-                  <button onClick={clearFilters} className="text-xs text-blue-600 font-semibold mt-2 hover:underline">Clear filters</button>
+                  <Badge variant="outline" className="rounded-full border-amber-200 bg-amber-50 text-amber-700">
+                    {activeFiltersCount} filter{activeFiltersCount === 1 ? '' : 's'}
+                  </Badge>
                 )}
               </div>
-            )}
+            </div>
+
+            <ScrollArea className="flex-1">
+              <div className="pb-4">
+                {filteredThreads.map(t => (
+                  <ThreadListItem key={t.id} thread={t} selected={t.id === selectedId}
+                    analysis={analyses[t.id]} meta={getMeta(t.id)}
+                    onSelect={() => handleSelect(t.id)} onStar={() => handleStar(t.id)} />
+                ))}
+                {filteredThreads.length === 0 && (
+                  <FolderEmptyState
+                    folder={folder}
+                    search={search}
+                    hasFilters={activeFiltersCount > 0}
+                    isAuthenticated={isAuthenticated}
+                    compact
+                    onClearSearch={clearSearch}
+                    onClearFilters={clearFilters}
+                    onRefresh={handleRefresh}
+                  />
+                )}
+              </div>
+            </ScrollArea>
           </div>
-        </div>
+        )}
 
         {/* Content */}
         <main className="flex-1 flex overflow-hidden bg-gray-50/50">
-          {!selectedThread ? (
-            <div className="flex-1 flex items-center justify-center">
-              <div className="text-center">
-                <div className="w-20 h-20 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-3xl flex items-center justify-center mx-auto mb-5">
-                  <Mail className="w-10 h-10 text-blue-300" />
-                </div>
-                <p className="text-base font-semibold text-gray-500">Select an email to read</p>
-                <p className="text-sm text-gray-400 mt-1.5">Click on AI Analysis tab to get insights</p>
-              </div>
+          {isCalendarView ? (
+            <CalendarWorkspace
+              events={calendarEvents}
+              loading={calendarLoading}
+              error={calendarError}
+              selectedDate={calendarDate}
+              onDateSelect={date => date && setCalendarDate(date)}
+              onRefresh={handleRefresh}
+              onConnect={() => signIn('google', { callbackUrl: '/inbox' })}
+              isAuthenticated={isAuthenticated}
+            />
+          ) : filteredThreads.length === 0 ? (
+            <div className="flex-1 p-6">
+              <FolderEmptyState
+                folder={folder}
+                search={search}
+                hasFilters={activeFiltersCount > 0}
+                isAuthenticated={isAuthenticated}
+                onClearSearch={clearSearch}
+                onClearFilters={clearFilters}
+                onRefresh={handleRefresh}
+              />
+            </div>
+          ) : !selectedThread ? (
+            <div className="flex-1 p-6">
+              <Empty className="min-h-full rounded-[1.75rem] border border-dashed border-gray-200 bg-white/80 shadow-sm">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon" className="size-16 rounded-3xl bg-blue-50 text-blue-700">
+                    <Mail className="size-8" />
+                  </EmptyMedia>
+                  <EmptyTitle>Select an email to read</EmptyTitle>
+                  <EmptyDescription>
+                    Choose any conversation from the list to open the thread and run AI analysis when you need it.
+                  </EmptyDescription>
+                </EmptyHeader>
+              </Empty>
             </div>
           ) : (
             <div className="flex-1 flex flex-col overflow-hidden bg-white">
@@ -1523,6 +2022,11 @@ export default function InboxPage() {
                     <p className="text-sm text-gray-500 mt-1 font-medium">
                       {selectedThread.from.name} &middot; {selectedThread.emails.length} message{selectedThread.emails.length !== 1 ? 's' : ''}
                     </p>
+                    {gmailError && (
+                      <p className="mt-3 inline-flex rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
+                        {gmailError}
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center gap-1 shrink-0 ml-4">
                     {selectedAnalysis && <PriorityBadge priority={selectedAnalysis.priority} />}
@@ -1554,10 +2058,10 @@ export default function InboxPage() {
                 {/* User labels on thread */}
                 <div className="flex items-center gap-2 mt-3 flex-wrap">
                   {getMeta(selectedThread.id).userLabels.map(label => (
-                    <span key={label} className="inline-flex items-center gap-1 text-[11px] bg-indigo-50 text-indigo-700 rounded-full px-2.5 py-1 font-semibold border border-indigo-100">
+                    <Badge key={label} variant="outline" className="rounded-full border-indigo-100 bg-indigo-50 text-indigo-700">
                       <Tag className="w-2.5 h-2.5" />{label}
                       <button onClick={() => handleRemoveLabel(selectedThread.id, label)} className="hover:text-red-500 ml-0.5 transition-colors"><X className="w-2.5 h-2.5" /></button>
-                    </span>
+                    </Badge>
                   ))}
                   <div className="relative group">
                     <button className="inline-flex items-center gap-1 text-[11px] text-gray-400 hover:text-blue-600 rounded-full px-2.5 py-1 border border-dashed border-gray-300 hover:border-blue-400 transition-colors font-medium">
@@ -1602,6 +2106,19 @@ export default function InboxPage() {
               <div className="flex-1 overflow-y-auto">
                 {activeTab === 'emails' ? (
                   <div className="p-6 space-y-4 max-w-3xl">
+                    {selectedThread.emails.length === 0 && (
+                      <Empty className="rounded-[1.5rem] border border-dashed border-gray-200 bg-gray-50/70">
+                        <EmptyHeader>
+                          <EmptyMedia variant="icon" className="size-14 rounded-3xl bg-gray-100 text-gray-600">
+                            <Mail className="size-7" />
+                          </EmptyMedia>
+                          <EmptyTitle>No messages available</EmptyTitle>
+                          <EmptyDescription>
+                            This thread is present, but there are no message bodies available to display yet.
+                          </EmptyDescription>
+                        </EmptyHeader>
+                      </Empty>
+                    )}
                     {selectedThread.emails.map(email => (
                       <div key={email.id} className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
                         <div className="flex items-center justify-between mb-3">
@@ -1632,7 +2149,7 @@ export default function InboxPage() {
                     ))}
 
                     {/* Reply button in emails tab */}
-                    {!showCompose && (
+                    {!showCompose && selectedThread.emails.length > 0 && (
                       <button onClick={() => { setComposeInitial(''); setShowCompose(true) }}
                         className="inline-flex items-center gap-2.5 text-sm font-semibold text-blue-700 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 px-5 py-3 rounded-xl transition-all border border-blue-200/60">
                         <CornerUpLeft className="w-4 h-4" /> Reply
@@ -1670,7 +2187,17 @@ export default function InboxPage() {
                         )}
                       </>
                     ) : (
-                      <div className="py-20 text-center text-gray-400"><p className="text-sm font-medium">Analysis unavailable.</p></div>
+                      <Empty className="rounded-[1.5rem] border border-dashed border-gray-200 bg-gray-50/60 py-20">
+                        <EmptyHeader>
+                          <EmptyMedia variant="icon" className="size-14 rounded-3xl bg-gray-100 text-gray-600">
+                            <Sparkles className="size-7" />
+                          </EmptyMedia>
+                          <EmptyTitle>Analysis unavailable</EmptyTitle>
+                          <EmptyDescription>
+                            MailMate could not prepare insights for this thread yet. Refresh or switch to another conversation.
+                          </EmptyDescription>
+                        </EmptyHeader>
+                      </Empty>
                     )}
                   </div>
                 )}

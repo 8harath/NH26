@@ -4,6 +4,9 @@ import {
   ListChecks, MessageSquare, Play, Shield, Sparkles, Tags, Zap
 } from 'lucide-react'
 import { Logo } from '@/components/logo'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
 
 const features = [
   {
@@ -104,37 +107,33 @@ export default function Home() {
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
           <Logo />
           <div className="flex items-center gap-3">
-            <Link
-              href="/inbox"
-              className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
-            >
-              Open Inbox <ChevronRight className="h-4 w-4" />
-            </Link>
-            <Link
-              href="/auth/signin"
-              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 px-5 py-2 text-sm font-semibold text-white shadow-sm shadow-cyan-500/20 transition-all hover:from-blue-700 hover:to-cyan-600"
-            >
-              Get Started
-            </Link>
+            <Button asChild variant="ghost" className="rounded-full text-sm text-gray-600 hover:text-gray-900">
+              <Link href="/inbox">
+                Open Inbox <ChevronRight className="h-4 w-4" />
+              </Link>
+            </Button>
+            <Button asChild className="rounded-full bg-gradient-to-r from-blue-600 to-cyan-500 px-5 py-2 text-sm font-semibold text-white shadow-sm shadow-cyan-500/20 transition-all hover:from-blue-700 hover:to-cyan-600">
+              <Link href="/auth/signin">Get Started</Link>
+            </Button>
           </div>
         </div>
       </nav>
 
       <section className="relative overflow-hidden px-6 pb-20 pt-20">
         <div className="absolute inset-0 -z-10">
-          <div className="absolute -right-10 top-0 h-96 w-96 rounded-full bg-cyan-100/70 blur-3xl" />
-          <div className="absolute bottom-0 left-0 h-80 w-80 rounded-full bg-blue-100/60 blur-3xl" />
-          <div className="absolute left-1/2 top-1/2 h-[680px] w-[680px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-br from-cyan-50/70 to-blue-50/30 blur-3xl" />
+          <div className="animate-glow-pulse absolute -right-10 top-0 h-96 w-96 rounded-full bg-cyan-100/70 blur-3xl" />
+          <div className="animate-float-slow absolute bottom-0 left-0 h-80 w-80 rounded-full bg-blue-100/60 blur-3xl" />
+          <div className="animate-float-reverse absolute left-1/2 top-1/2 h-[680px] w-[680px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-br from-cyan-50/70 to-blue-50/30 blur-3xl" />
         </div>
 
         <div className="mx-auto grid max-w-6xl items-center gap-12 lg:grid-cols-[1.08fr_0.92fr]">
           <div>
-            <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-cyan-200/80 bg-white/90 px-4 py-2 text-sm font-medium text-cyan-800 shadow-sm shadow-cyan-100/60 backdrop-blur">
+            <Badge variant="outline" className="mb-8 inline-flex items-center gap-2 rounded-full border-cyan-200/80 bg-white/90 px-4 py-2 text-sm font-medium text-cyan-800 shadow-sm shadow-cyan-100/60 backdrop-blur">
               <Sparkles className="h-4 w-4" />
               Agentic inbox copilot
               <span className="h-1 w-1 rounded-full bg-cyan-500" />
               <span className="text-cyan-600">Built for Gmail + Calendar</span>
-            </div>
+            </Badge>
 
             <h1 className="text-5xl font-bold leading-[1.02] tracking-tight text-gray-950 sm:text-6xl lg:text-7xl">
               Your inbox,
@@ -149,47 +148,48 @@ export default function Home() {
             </p>
 
             <div className="mt-10 flex flex-wrap items-center gap-4">
-              <Link
-                href="/auth/signin"
-                className="inline-flex items-center gap-2.5 rounded-2xl bg-gradient-to-r from-blue-600 to-cyan-500 px-8 py-4 text-base font-semibold text-white shadow-lg shadow-cyan-500/20 transition-all hover:-translate-y-0.5 hover:from-blue-700 hover:to-cyan-600 hover:shadow-xl hover:shadow-cyan-500/25"
-              >
-                Connect Google Workspace <ArrowRight className="h-5 w-5" />
-              </Link>
-              <Link
-                href="/inbox"
-                className="inline-flex items-center gap-2.5 rounded-2xl border border-gray-200 bg-white px-8 py-4 text-base font-semibold text-gray-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-gray-50 hover:shadow-md"
-              >
-                <Play className="h-4 w-4 fill-current" /> Explore demo inbox
-              </Link>
+              <Button asChild size="lg" className="rounded-2xl bg-gradient-to-r from-blue-600 to-cyan-500 px-8 text-base font-semibold text-white shadow-lg shadow-cyan-500/20 transition-all hover:-translate-y-0.5 hover:from-blue-700 hover:to-cyan-600 hover:shadow-xl hover:shadow-cyan-500/25">
+                <Link href="/auth/signin">
+                  Connect Google Workspace <ArrowRight className="h-5 w-5" />
+                </Link>
+              </Button>
+              <Button asChild variant="outline" size="lg" className="rounded-2xl border-gray-200 bg-white px-8 text-base font-semibold text-gray-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-gray-50 hover:shadow-md">
+                <Link href="/inbox">
+                  <Play className="h-4 w-4 fill-current" /> Explore demo inbox
+                </Link>
+              </Button>
             </div>
 
             <div className="mt-8 flex flex-wrap gap-3">
               {trustSignals.map(signal => (
-                <div
+                <Badge
                   key={signal}
-                  className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white/90 px-4 py-2 text-sm text-gray-600 shadow-sm shadow-gray-100/70"
+                  variant="outline"
+                  className="inline-flex items-center gap-2 rounded-full border-gray-200 bg-white/90 px-4 py-2 text-sm text-gray-600 shadow-sm shadow-gray-100/70"
                 >
                   <Shield className="h-4 w-4 text-cyan-700" />
                   {signal}
-                </div>
+                </Badge>
               ))}
             </div>
 
             <div className="mt-10 grid gap-4 sm:grid-cols-3">
               {heroStats.map(stat => (
-                <div
+                <Card
                   key={stat.label}
-                  className="rounded-3xl border border-gray-200/80 bg-white/90 p-5 shadow-sm shadow-gray-100/80 backdrop-blur"
+                  className="animate-slide-up rounded-3xl border-gray-200/80 bg-white/90 shadow-sm shadow-gray-100/80 backdrop-blur"
                 >
-                  <p className="text-3xl font-bold text-gray-950">{stat.value}</p>
-                  <p className="mt-2 text-sm leading-relaxed text-gray-500">{stat.label}</p>
-                </div>
+                  <CardContent className="p-5">
+                    <p className="text-3xl font-bold text-gray-950">{stat.value}</p>
+                    <p className="mt-2 text-sm leading-relaxed text-gray-500">{stat.label}</p>
+                  </CardContent>
+                </Card>
               ))}
             </div>
           </div>
 
           <div className="relative">
-            <div className="absolute -inset-6 rounded-[2rem] bg-gradient-to-br from-cyan-100/60 via-blue-100/30 to-transparent blur-2xl" />
+            <div className="animate-glow-pulse absolute -inset-6 rounded-[2rem] bg-gradient-to-br from-cyan-100/60 via-blue-100/30 to-transparent blur-2xl" />
             <div className="relative overflow-hidden rounded-[2rem] border border-gray-200/80 bg-white/92 shadow-2xl shadow-cyan-100/50">
               <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50/80 px-6 py-4">
                 <div>
@@ -303,16 +303,18 @@ export default function Home() {
 
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {features.map(feature => (
-              <div
+              <Card
                 key={feature.title}
-                className={`group rounded-2xl border bg-gradient-to-br ${feature.color} p-6 transition-all hover:-translate-y-0.5 hover:shadow-lg`}
+                className={`group rounded-2xl border bg-gradient-to-br ${feature.color} py-0 transition-all hover:-translate-y-0.5 hover:shadow-lg`}
               >
-                <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-white/90 shadow-sm transition-shadow group-hover:shadow">
-                  <feature.icon className={`h-5 w-5 ${feature.iconColor}`} />
-                </div>
-                <h3 className="font-bold text-gray-950">{feature.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-gray-600">{feature.desc}</p>
-              </div>
+                <CardContent className="p-6">
+                  <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-white/90 shadow-sm transition-shadow group-hover:shadow">
+                    <feature.icon className={`h-5 w-5 ${feature.iconColor}`} />
+                  </div>
+                  <h3 className="font-bold text-gray-950">{feature.title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-gray-600">{feature.desc}</p>
+                </CardContent>
+              </Card>
             ))}
           </div>
         </div>
@@ -329,18 +331,14 @@ export default function Home() {
             Connect Gmail and Calendar, let MailMate prepare the next action, then approve it in seconds.
           </p>
           <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
-            <Link
-              href="/auth/signin"
-              className="inline-flex items-center gap-2.5 rounded-2xl bg-gradient-to-r from-blue-500 to-cyan-500 px-8 py-4 text-base font-semibold text-white shadow-lg shadow-cyan-500/25 transition-all hover:from-blue-400 hover:to-cyan-400"
-            >
-              Start with Google <ArrowRight className="h-5 w-5" />
-            </Link>
-            <Link
-              href="/inbox"
-              className="inline-flex items-center gap-2.5 rounded-2xl border border-white/20 bg-white/10 px-8 py-4 text-base font-semibold text-white backdrop-blur-sm transition-all hover:bg-white/15"
-            >
-              Launch demo inbox
-            </Link>
+            <Button asChild size="lg" className="rounded-2xl bg-gradient-to-r from-blue-500 to-cyan-500 px-8 text-base font-semibold text-white shadow-lg shadow-cyan-500/25 transition-all hover:from-blue-400 hover:to-cyan-400">
+              <Link href="/auth/signin">
+                Start with Google <ArrowRight className="h-5 w-5" />
+              </Link>
+            </Button>
+            <Button asChild variant="outline" size="lg" className="rounded-2xl border-white/20 bg-white/10 px-8 text-base font-semibold text-white backdrop-blur-sm transition-all hover:bg-white/15">
+              <Link href="/inbox">Launch demo inbox</Link>
+            </Button>
           </div>
         </div>
       </section>

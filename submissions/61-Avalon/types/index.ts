@@ -98,7 +98,7 @@ export interface ThreadMeta {
   userLabels: string[]  // custom user-created labels
 }
 
-export type SidebarFolder = 'inbox' | 'starred' | 'snoozed' | 'sent' | 'drafts' | 'trash' | 'all'
+export type SidebarFolder = 'inbox' | 'starred' | 'snoozed' | 'sent' | 'drafts' | 'calendar' | 'trash' | 'all'
 
 // --- UI State Types ---
 
