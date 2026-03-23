@@ -1,0 +1,15 @@
+<svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    @media (prefers-color-scheme: light) {
+      .bg { fill: white; }
+      .fg { fill: #1d4ed8; }
+    }
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #111827; }
+      .fg { fill: #60a5fa; }
+    }
+  </style>
+  <rect class="bg" width="180" height="180" rx="37"/>
+  <path class="fg" d="M38 58C38 52.477 42.477 48 48 48H132C137.523 48 142 52.477 142 58V122C142 127.523 137.523 132 132 132H48C42.477 132 38 127.523 38 122V58Z" opacity="0.15"/>
+  <path class="fg" d="M48 52H132C135.314 52 138 54.686 138 58V122C138 125.314 135.314 128 132 128H48C44.686 128 42 125.314 42 122V58C42 54.686 44.686 52 48 52ZM48 56C47.17 56 46.42 56.34 45.88 56.88L90 92L134.12 56.88C133.58 56.34 132.83 56 132 56H48ZM138 62L93.42 97.52C91.72 98.87 89.28 98.87 87.58 97.52L42 62V122C42 123.657 43.343 125 45 125H135C136.657 125 138 123.657 138 122V62Z" fill-rule="evenodd" clip-rule="evenodd"/>
+</svg>
