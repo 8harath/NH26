@@ -9,11 +9,38 @@ import {
   Archive, Trash2, AlarmClock, PenLine,
   Wand2, Minimize2, Maximize2, CheckCheck, CornerUpLeft,
   LogIn, LogOut, CalendarPlus, ExternalLink,
-  RefreshCw, Filter, ChevronDown, ChevronRight, ChevronLeft, Plus, PenSquare, CalendarDays
+  RefreshCw, Filter, ChevronDown, ChevronRight, Plus, PenSquare, CalendarDays, Menu
 } from 'lucide-react'
 import NextLink from 'next/link'
+import { Badge } from '@/components/ui/badge'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { Calendar as DayPickerCalendar } from '@/components/ui/calendar'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { Logo } from '@/components/logo'
 import { mockThreads } from '@/data/emails'
 import {
@@ -39,7 +66,7 @@ function saveJson<T>(key: string, v: T) {
 
 function loadAnalyses(): Record<string, ComprehensiveAnalysis> {
   const data = loadJson<Record<string, ComprehensiveAnalysis>>(LS_ANALYSES, {})
-  const first = Object.values(data)[0] as Record<string, unknown> | undefined
+  const first = Object.values(data)[0] as unknown as Record<string, unknown> | undefined
   if (first && !('summary' in first && 'smartReplies' in first)) {
     localStorage.removeItem(LS_ANALYSES)
     return {}
@@ -145,9 +172,419 @@ const sidebarItems: { folder: SidebarFolder; icon: typeof Inbox; label: string }
   { folder: 'snoozed', icon: AlarmClock, label: 'Snoozed' },
   { folder: 'sent', icon: Send, label: 'Sent' },
   { folder: 'drafts', icon: PenLine, label: 'Drafts' },
+  { folder: 'calendar', icon: CalendarDays, label: 'Calendar' },
   { folder: 'trash', icon: Trash2, label: 'Trash' },
   { folder: 'all', icon: Mail, label: 'All Mail' },
 ]
+
+const folderMeta: Record<SidebarFolder, {
+  label: string
+  emptyTitle: string
+  emptyDescription: string
+}> = {
+  inbox: {
+    label: 'Inbox',
+    emptyTitle: 'Inbox is clear',
+    emptyDescription: 'No conversations are waiting here right now. New mail will appear as soon as it arrives.',
+  },
+  starred: {
+    label: 'Starred',
+    emptyTitle: 'No starred conversations',
+    emptyDescription: 'Important threads you star will stay collected here for quick access.',
+  },
+  snoozed: {
+    label: 'Snoozed',
+    emptyTitle: 'Nothing is snoozed',
+    emptyDescription: 'Snoozed emails will reappear here until their reminder time is over.',
+  },
+  sent: {
+    label: 'Sent',
+    emptyTitle: 'No sent mail yet',
+    emptyDescription: 'Messages you send from MailMate will be available here so you can review the full thread.',
+  },
+  drafts: {
+    label: 'Drafts',
+    emptyTitle: 'No drafts saved',
+    emptyDescription: 'Draft replies and unfinished messages will show up here instead of disappearing.',
+  },
+  calendar: {
+    label: 'Calendar',
+    emptyTitle: 'No calendar events found',
+    emptyDescription: 'Connect Google Calendar or refresh the sync to load your upcoming schedule and meeting context.',
+  },
+  trash: {
+    label: 'Trash',
+    emptyTitle: 'Trash is empty',
+    emptyDescription: 'Deleted conversations land here. If nothing is shown, there is nothing to clean up.',
+  },
+  all: {
+    label: 'All Mail',
+    emptyTitle: 'No mail available',
+    emptyDescription: 'This workspace does not have any visible conversations yet.',
+  },
+}
+
+function titleCase(value: string) {
+  return value.replace(/[-_]/g, ' ').replace(/\b\w/g, char => char.toUpperCase())
+}
+
+function deriveThreadTags(thread: Thread, analysis: ComprehensiveAnalysis | null | undefined, meta: ThreadMeta) {
+  const tags: string[] = []
+  const attachments = thread.emails.some(email => (email.attachments?.length ?? 0) > 0)
+
+  tags.push(titleCase(analysis?.category ?? thread.category))
+
+  if (analysis?.priority) tags.push(priorityConfig[analysis.priority]?.label ?? titleCase(analysis.priority))
+  if (analysis?.senderImportance === 'vip') tags.push('VIP')
+  if (analysis?.followUpNeeded) tags.push('Needs Reply')
+  if (analysis?.meetings.length) tags.push('Meeting')
+  if (analysis?.tasks.length) tags.push('Task')
+  if (analysis?.deadlines.length) tags.push('Deadline')
+  if (attachments) tags.push('Attachment')
+  if (meta.starred) tags.push('Starred')
+  if (!meta.read) tags.push('Unread')
+  if (meta.userLabels.length) tags.push(...meta.userLabels.slice(0, 2))
+
+  return Array.from(new Set(tags)).slice(0, 6)
+}
+
+function getPositiveReply(thread: Thread, analysis: ComprehensiveAnalysis) {
+  const positiveCandidate = analysis.smartReplies.find(reply => !/\b(no|not|can't|cannot|decline|unable|won't|pass)\b/i.test(reply))
+  if (positiveCandidate) return positiveCandidate
+  if (analysis.meetings.length > 0) return `This works for me. Please send the invite and I'll be there.`
+  if (analysis.tasks.length > 0 || analysis.followUpNeeded) return `Thanks for sending this over. I'll take care of it and follow up shortly.`
+  return `Thanks for the note about "${thread.subject}". This works for me and I'll move forward on my side.`
+}
+
+function getDeclineReply(thread: Thread, analysis: ComprehensiveAnalysis) {
+  if (analysis.meetings.length > 0) {
+    return `Thanks for the invitation. I won't be able to join this meeting, so please proceed without me or share notes afterward.`
+  }
+
+  switch (analysis.category) {
+    case 'spam':
+      return `Thanks for reaching out. I'm going to pass on this and won't take any action on it.`
+    case 'updates':
+      return `Thanks for the update. I don't need to take this forward from my side right now.`
+    case 'finance':
+      return `Thanks for sending this over. I can't approve or commit to this request at the moment.`
+    case 'personal':
+      return `Thanks for thinking of me. I won't be able to commit to this right now.`
+    default:
+      return `Thanks for the note. I won't be able to take this on right now, so please move ahead without me.`
+  }
+}
+
+function buildQuickReplyOptions(thread: Thread, analysis: ComprehensiveAnalysis) {
+  return [
+    {
+      kind: 'positive' as const,
+      label: 'Positive',
+      text: getPositiveReply(thread, analysis),
+      tone: 'Approve or accept the request',
+      classes: 'border-emerald-200 bg-emerald-50/70 text-emerald-900 hover:border-emerald-300 hover:bg-emerald-50',
+    },
+    {
+      kind: 'decline' as const,
+      label: 'Decline',
+      text: getDeclineReply(thread, analysis),
+      tone: 'Politely decline or opt out',
+      classes: 'border-slate-200 bg-slate-50 text-slate-800 hover:border-slate-300 hover:bg-slate-100',
+    },
+  ]
+}
+
+function isSameDay(left: Date, right: Date) {
+  return left.toDateString() === right.toDateString()
+}
+
+function FolderEmptyState({
+  folder,
+  search,
+  hasFilters,
+  isAuthenticated,
+  compact = false,
+  onClearSearch,
+  onClearFilters,
+  onRefresh,
+}: {
+  folder: SidebarFolder
+  search: string
+  hasFilters: boolean
+  isAuthenticated: boolean
+  compact?: boolean
+  onClearSearch: () => void
+  onClearFilters: () => void
+  onRefresh: () => void
+}) {
+  const iconMap: Record<SidebarFolder, typeof Inbox> = {
+    inbox: Inbox,
+    starred: Star,
+    snoozed: AlarmClock,
+    sent: Send,
+    drafts: PenLine,
+    calendar: CalendarDays,
+    trash: Trash2,
+    all: Mail,
+  }
+
+  const Icon = iconMap[folder]
+  const searchLabel = search.trim()
+  const hasSearch = searchLabel.length > 0
+  const title = hasSearch || hasFilters
+    ? 'Nothing matches this view'
+    : folderMeta[folder].emptyTitle
+  const description = hasSearch || hasFilters
+    ? `MailMate could not find conversations in ${folderMeta[folder].label.toLowerCase()} for the current search or filters.`
+    : folderMeta[folder].emptyDescription
+
+  return (
+    <Empty className={compact ? 'gap-4 rounded-2xl border-none px-4 py-12' : 'min-h-full gap-5 rounded-[1.75rem] border border-dashed border-gray-200 bg-white/80 p-10 shadow-sm'}>
+      <EmptyHeader className="max-w-md">
+        <EmptyMedia variant="icon" className={compact ? 'size-12 rounded-2xl bg-gray-100 text-gray-500' : 'size-14 rounded-3xl bg-gradient-to-br from-blue-50 to-cyan-100 text-blue-700'}>
+          <Icon className={compact ? 'size-6' : 'size-7'} />
+        </EmptyMedia>
+        <EmptyTitle className={compact ? 'text-base text-gray-700' : 'text-2xl text-gray-900'}>{title}</EmptyTitle>
+        <EmptyDescription className={compact ? 'text-sm text-gray-500' : 'text-base text-gray-500'}>
+          {description}
+        </EmptyDescription>
+      </EmptyHeader>
+
+      <EmptyContent className={compact ? 'max-w-xs gap-2' : 'max-w-md gap-3'}>
+        {hasSearch && (
+          <Badge variant="outline" className="rounded-full border-blue-200 bg-blue-50 px-3 py-1 text-blue-700">
+            Search: {searchLabel}
+          </Badge>
+        )}
+        {hasFilters && (
+          <Badge variant="outline" className="rounded-full border-amber-200 bg-amber-50 px-3 py-1 text-amber-700">
+            Filters active
+          </Badge>
+        )}
+        <div className={`flex ${compact ? 'flex-col' : 'flex-wrap'} items-center justify-center gap-2`}>
+          {hasSearch && (
+            <Button variant="outline" size={compact ? 'sm' : 'default'} className="rounded-full" onClick={onClearSearch}>
+              Clear search
+            </Button>
+          )}
+          {hasFilters && (
+            <Button variant="outline" size={compact ? 'sm' : 'default'} className="rounded-full" onClick={onClearFilters}>
+              Clear filters
+            </Button>
+          )}
+          {isAuthenticated && !hasSearch && !hasFilters && folder !== 'calendar' && (
+            <Button variant="outline" size={compact ? 'sm' : 'default'} className="rounded-full" onClick={onRefresh}>
+              Refresh mailbox
+            </Button>
+          )}
+        </div>
+      </EmptyContent>
+    </Empty>
+  )
+}
+
+function CalendarWorkspace({
+  events,
+  loading,
+  error,
+  selectedDate,
+  onDateSelect,
+  onRefresh,
+  onConnect,
+  isAuthenticated,
+}: {
+  events: SyncedCalendarEvent[]
+  loading: boolean
+  error: string | null
+  selectedDate: Date
+  onDateSelect: (date: Date | undefined) => void
+  onRefresh: () => void
+  onConnect: () => void
+  isAuthenticated: boolean
+}) {
+  const upcomingEvents = [...events].sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
+  const selectedEvents = upcomingEvents.filter(event => isSameDay(new Date(event.start), selectedDate))
+  const nextEvent = upcomingEvents[0] ?? null
+  const todayCount = upcomingEvents.filter(event => isSameDay(new Date(event.start), new Date())).length
+
+  return (
+    <div className="flex-1 overflow-hidden bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.08),_transparent_35%),radial-gradient(circle_at_bottom_right,_rgba(6,182,212,0.08),_transparent_30%),linear-gradient(180deg,#f8fbff_0%,#f9fafb_100%)] p-6">
+      <div className="grid h-full gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
+        <Card className="border-gray-200/80 bg-white/90 shadow-xl shadow-blue-100/30">
+          <CardHeader>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <CardTitle className="text-xl text-gray-900">Calendar cockpit</CardTitle>
+                <CardDescription className="mt-1 text-gray-500">
+                  Review upcoming meetings, focus days, and event context without leaving the inbox.
+                </CardDescription>
+              </div>
+              <Button variant="outline" size="sm" className="rounded-full" onClick={isAuthenticated ? onRefresh : onConnect}>
+                {isAuthenticated ? 'Refresh' : 'Connect'}
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <div className="grid grid-cols-3 gap-3">
+              <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-600">Upcoming</p>
+                <p className="mt-2 text-2xl font-bold text-blue-950">{upcomingEvents.length}</p>
+              </div>
+              <div className="rounded-2xl border border-cyan-100 bg-cyan-50/70 p-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-600">Today</p>
+                <p className="mt-2 text-2xl font-bold text-cyan-950">{todayCount}</p>
+              </div>
+              <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-600">Next</p>
+                <p className="mt-2 text-sm font-bold leading-tight text-emerald-950">
+                  {nextEvent ? formatCalendarEventLabel(nextEvent.start) : 'No event'}
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-[1.5rem] border border-gray-200 bg-white/90 p-3 shadow-sm">
+              <DayPickerCalendar
+                mode="single"
+                selected={selectedDate}
+                onSelect={onDateSelect}
+                className="w-full"
+                classNames={{
+                  root: 'w-full',
+                  months: 'w-full',
+                  month: 'w-full',
+                  table: 'w-full',
+                }}
+              />
+            </div>
+
+            {nextEvent && (
+              <div className="rounded-[1.5rem] border border-gray-200 bg-gray-50/80 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500">Next meeting</p>
+                    <p className="mt-2 text-sm font-semibold text-gray-900">{nextEvent.title}</p>
+                    <p className="mt-1 text-xs text-gray-500">{formatCalendarEventLabel(nextEvent.start)}</p>
+                  </div>
+                  <Badge variant="outline" className="rounded-full border-emerald-200 bg-emerald-50 text-emerald-700">
+                    {nextEvent.attendees.length} attendee{nextEvent.attendees.length === 1 ? '' : 's'}
+                  </Badge>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="min-h-0 overflow-hidden border-gray-200/80 bg-white/92 shadow-xl shadow-cyan-100/20">
+          <CardHeader className="border-b border-gray-100">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <CardTitle className="text-xl text-gray-900">
+                  Agenda for {selectedDate.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}
+                </CardTitle>
+                <CardDescription className="mt-1 text-gray-500">
+                  Upcoming events stay linked to Google Calendar so users can jump straight into the original booking.
+                </CardDescription>
+              </div>
+              {loading && <Loader2 className="mt-1 h-4 w-4 animate-spin text-blue-500" />}
+            </div>
+          </CardHeader>
+
+          <CardContent className="flex min-h-0 flex-1 px-0 pb-0">
+            {!isAuthenticated ? (
+              <Empty className="m-6 flex-1 rounded-[1.5rem] border border-dashed border-gray-200 bg-gray-50/60">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon" className="size-14 rounded-3xl bg-blue-50 text-blue-700">
+                    <CalendarDays className="size-7" />
+                  </EmptyMedia>
+                  <EmptyTitle>Connect Google Calendar</EmptyTitle>
+                  <EmptyDescription>
+                    Calendar sync is ready, but the app needs your Google session before it can pull live events.
+                  </EmptyDescription>
+                </EmptyHeader>
+                <EmptyContent>
+                  <Button className="rounded-full" onClick={onConnect}>Connect Gmail and Calendar</Button>
+                </EmptyContent>
+              </Empty>
+            ) : error ? (
+              <Empty className="m-6 flex-1 rounded-[1.5rem] border border-dashed border-red-200 bg-red-50/40">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon" className="size-14 rounded-3xl bg-red-100 text-red-700">
+                    <AlertTriangle className="size-7" />
+                  </EmptyMedia>
+                  <EmptyTitle>Calendar sync needs attention</EmptyTitle>
+                  <EmptyDescription>{error}</EmptyDescription>
+                </EmptyHeader>
+                <EmptyContent>
+                  <Button variant="outline" className="rounded-full" onClick={onRefresh}>Try again</Button>
+                </EmptyContent>
+              </Empty>
+            ) : selectedEvents.length === 0 ? (
+              <Empty className="m-6 flex-1 rounded-[1.5rem] border border-dashed border-gray-200 bg-gray-50/60">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon" className="size-14 rounded-3xl bg-cyan-50 text-cyan-700">
+                    <CalendarDays className="size-7" />
+                  </EmptyMedia>
+                  <EmptyTitle>No meetings on this date</EmptyTitle>
+                  <EmptyDescription>
+                    The selected day is clear. Use the calendar to inspect another day or refresh to check for new invites.
+                  </EmptyDescription>
+                </EmptyHeader>
+                <EmptyContent>
+                  <Button variant="outline" className="rounded-full" onClick={onRefresh}>Refresh events</Button>
+                </EmptyContent>
+              </Empty>
+            ) : (
+              <ScrollArea className="h-full w-full">
+                <div className="space-y-4 p-6">
+                  {selectedEvents.map(event => (
+                    <div
+                      key={event.id}
+                      className="rounded-[1.5rem] border border-gray-200 bg-[linear-gradient(135deg,rgba(239,246,255,0.9),rgba(255,255,255,0.95))] p-5 shadow-sm"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="text-lg font-semibold text-gray-900">{event.title}</h3>
+                            <Badge variant="outline" className="rounded-full border-blue-200 bg-blue-50 text-blue-700">
+                              {formatCalendarEventLabel(event.start)}
+                            </Badge>
+                          </div>
+                          <p className="mt-2 text-sm text-gray-500">
+                            Ends {formatCalendarEventLabel(event.end)}
+                          </p>
+                          <div className="mt-4 flex flex-wrap gap-2">
+                            {event.attendees.length > 0 ? event.attendees.map(attendee => (
+                              <Badge key={attendee} variant="outline" className="rounded-full border-gray-200 bg-white text-gray-600">
+                                <Users className="h-3 w-3" />
+                                {attendee}
+                              </Badge>
+                            )) : (
+                              <Badge variant="outline" className="rounded-full border-gray-200 bg-white text-gray-600">
+                                No attendee list
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                        {event.htmlLink && (
+                          <Button asChild variant="outline" size="sm" className="rounded-full">
+                            <a href={event.htmlLink} target="_blank" rel="noreferrer">
+                              <ExternalLink className="h-4 w-4" />
+                              Open
+                            </a>
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  )
+}
 
 // ─── Small components ───────────────────────────────────────────
 
@@ -174,6 +611,7 @@ function ThreadListItem({ thread, selected, analysis, meta, onSelect, onStar }: 
 }) {
   const dotColor: Record<string, string> = { urgent: 'bg-red-500', important: 'bg-amber-500', normal: 'bg-gray-300', low: 'bg-slate-200' }
   const isUnread = !meta.read
+  const overviewTags = deriveThreadTags(thread, analysis, meta).slice(0, 3)
 
   return (
     <button onClick={onSelect}
@@ -224,6 +662,13 @@ function ThreadListItem({ thread, selected, analysis, meta, onSelect, onStar }: 
               </span>
             )}
           </div>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {overviewTags.map(tag => (
+              <Badge key={tag} variant="outline" className="rounded-full border-gray-200 bg-white px-2 py-0.5 text-[10px] font-medium text-gray-600">
+                {tag}
+              </Badge>
+            ))}
+          </div>
         </div>
       </div>
     </button>
@@ -232,51 +677,77 @@ function ThreadListItem({ thread, selected, analysis, meta, onSelect, onStar }: 
 
 // ─── Analysis sections ──────────────────────────────────────────
 
-function SummarySection({ analysis }: { analysis: ComprehensiveAnalysis }) {
+function SummarySection({ thread, analysis, meta }: { thread: Thread; analysis: ComprehensiveAnalysis; meta: ThreadMeta }) {
+  const overviewTags = deriveThreadTags(thread, analysis, meta)
   return (
-    <div className="space-y-4">
-      <div className="flex items-center flex-wrap gap-2">
-        <PriorityBadge priority={analysis.priority} />
-        <CategoryBadge category={analysis.category} />
-        <SenderBadge importance={analysis.senderImportance} />
-        {analysis.labels.map(l => (
-          <span key={l} className="inline-flex items-center gap-1 text-[11px] bg-gray-100 text-gray-600 rounded-full px-2 py-0.5 font-medium">
-            <Tag className="w-2.5 h-2.5" />{l}
-          </span>
-        ))}
-      </div>
-      <div className="bg-gradient-to-br from-gray-50 to-slate-50/50 rounded-2xl p-5 border border-gray-100">
-        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-          <Sparkles className="w-3.5 h-3.5 text-blue-500" /> AI Summary
-        </p>
-        <ul className="space-y-2">
-          {analysis.summary.map((s, i) => (
-            <li key={i} className="text-sm text-gray-700 flex items-start gap-2.5 leading-relaxed">
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-2 shrink-0" />{s}
-            </li>
+    <Card className="overflow-hidden border-gray-200 shadow-sm">
+      <CardHeader className="border-b border-gray-100 pb-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <PriorityBadge priority={analysis.priority} />
+          <CategoryBadge category={analysis.category} />
+          <SenderBadge importance={analysis.senderImportance} />
+          {overviewTags.map(tag => (
+            <Badge key={tag} variant="outline" className="rounded-full border-gray-200 bg-gray-50 text-gray-600">
+              <Tag className="w-3 h-3" />
+              {tag}
+            </Badge>
           ))}
-        </ul>
-      </div>
-    </div>
+        </div>
+        <div>
+          <CardTitle className="flex items-center gap-2 text-lg text-gray-900">
+            <Sparkles className="w-4 h-4 text-blue-600" />
+            Executive summary
+          </CardTitle>
+          <CardDescription className="mt-1 text-gray-500">
+            Condensed thread context for fast review before you approve the next action.
+          </CardDescription>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3 p-5">
+        {analysis.summary.map((s, i) => (
+          <div key={i} className="flex items-start gap-3 rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
+            <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-semibold text-white">
+              {i + 1}
+            </div>
+            <p className="text-sm leading-relaxed text-gray-700">{s}</p>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
   )
 }
 
-function SmartRepliesSection({ replies, onUseReply }: { replies: string[]; onUseReply: (text: string) => void }) {
-  if (replies.length === 0) return null
+function SmartRepliesSection({ thread, analysis, onUseReply }: { thread: Thread; analysis: ComprehensiveAnalysis; onUseReply: (text: string) => void }) {
+  const replies = buildQuickReplyOptions(thread, analysis)
   return (
-    <div>
-      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-        <MessageSquare className="w-3.5 h-3.5 text-blue-500" /> Quick Replies
-      </p>
-      <div className="flex flex-wrap gap-2">
-        {replies.map((r, i) => (
-          <button key={i} onClick={() => onUseReply(r)}
-            className="text-xs bg-white border border-gray-200 rounded-xl px-3.5 py-2 hover:border-blue-300 hover:bg-blue-50/50 hover:shadow-sm transition-all text-gray-700 font-medium">
-            {r}
+    <Card className="overflow-hidden border-gray-200 shadow-sm">
+      <CardHeader className="border-b border-gray-100 pb-4">
+        <CardTitle className="flex items-center gap-2 text-lg text-gray-900">
+          <MessageSquare className="w-4 h-4 text-blue-600" />
+          Quick replies
+        </CardTitle>
+        <CardDescription className="text-gray-500">
+          One affirmative option and one decline option, ready to place into the reply composer.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-3 p-5 lg:grid-cols-2">
+        {replies.map(reply => (
+          <button
+            key={reply.kind}
+            onClick={() => onUseReply(reply.text)}
+            className={`rounded-2xl border p-4 text-left transition-all ${reply.classes}`}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <Badge variant="outline" className="rounded-full border-current/15 bg-white/70 text-current">
+                {reply.label}
+              </Badge>
+              <span className="text-[11px] font-medium text-gray-500">{reply.tone}</span>
+            </div>
+            <p className="mt-3 text-sm font-medium leading-relaxed">{reply.text}</p>
           </button>
         ))}
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   )
 }
 
@@ -284,18 +755,24 @@ function DraftReplySection({ draft }: { draft: string }) {
   const [copied, setCopied] = useState(false)
   if (!draft) return null
   return (
-    <div>
-      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-        <FileText className="w-3.5 h-3.5 text-blue-500" /> AI-Suggested Reply
-      </p>
-      <div className="bg-white border border-gray-200 rounded-2xl p-4 relative shadow-sm">
+    <Card className="overflow-hidden border-gray-200 shadow-sm">
+      <CardHeader className="border-b border-gray-100 pb-4">
+        <CardTitle className="flex items-center gap-2 text-lg text-gray-900">
+          <FileText className="w-4 h-4 text-blue-600" />
+          Drafted reply
+        </CardTitle>
+        <CardDescription className="text-gray-500">
+          A full professional draft built from the latest thread context.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="relative p-5">
         <p className="text-sm text-gray-700 whitespace-pre-wrap pr-8 leading-relaxed">{draft}</p>
         <button onClick={() => { navigator.clipboard.writeText(draft); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
           className="absolute top-3 right-3 p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
           {copied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5 text-gray-400" />}
         </button>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   )
 }
 
@@ -326,42 +803,59 @@ function MeetingsSection({ meetings, isAuthenticated }: { meetings: Comprehensiv
 
   if (meetings.length === 0) return null
   return (
-    <div>
-      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-        <Calendar className="w-3.5 h-3.5 text-emerald-500" /> Detected Meetings
-      </p>
-      <div className="space-y-2.5">
+    <Card className="border-gray-200 shadow-sm">
+      <CardHeader className="border-b border-gray-100 pb-4">
+        <CardTitle className="flex items-center gap-2 text-lg text-gray-900">
+          <Calendar className="w-4 h-4 text-emerald-600" />
+          Meeting actions
+        </CardTitle>
+        <CardDescription className="text-gray-500">
+          Calendar-ready events extracted from the thread.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3 p-5">
         {meetings.map((m, i) => (
-          <div key={i} className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
-            <div className="flex items-start justify-between">
-              <div>
+          <div key={i} className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+              <div className="min-w-0">
                 <p className="text-sm font-semibold text-gray-900">{m.title}</p>
-                <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-500">
+                <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-gray-500">
                   <span className="flex items-center gap-1 font-medium"><Calendar className="w-3 h-3 text-emerald-500" />{m.date}</span>
                   {m.time && <span className="flex items-center gap-1 font-medium"><Clock className="w-3 h-3 text-blue-500" />{m.time}</span>}
                 </div>
-                {m.attendees.length > 0 && <p className="text-xs text-gray-400 mt-1.5"><Users className="w-3 h-3 inline mr-1" />{m.attendees.join(', ')}</p>}
+                {m.attendees.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {m.attendees.map(attendee => (
+                      <Badge key={attendee} variant="outline" className="rounded-full border-gray-200 bg-white text-gray-600">
+                        <Users className="w-3 h-3" />
+                        {attendee}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
               </div>
               {isAuthenticated && (
-                <button
+                <Button
                   onClick={() => addToCalendar(m, i)}
                   disabled={addingIdx === i || addedIdx.has(i)}
-                  className={`shrink-0 inline-flex items-center gap-1.5 text-[11px] font-semibold px-3 py-2 rounded-xl transition-all ${
+                  variant="outline"
+                  size="sm"
+                  className={`shrink-0 rounded-xl ${
                     addedIdx.has(i)
-                      ? 'bg-green-50 text-green-700 border border-green-200'
-                      : 'bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 border border-blue-200 hover:shadow-sm'
-                  } disabled:opacity-50`}
+                      ? 'border-green-200 bg-green-50 text-green-700'
+                      : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
+                  }`}
                 >
                   {addingIdx === i ? <Loader2 className="w-3 h-3 animate-spin" /> :
                    addedIdx.has(i) ? <><Check className="w-3 h-3" /> Added</> :
-                   <><CalendarPlus className="w-3 h-3" /> Add to Calendar</>}
-                </button>
+                   <><CalendarPlus className="w-3 h-3" /> Add to calendar</>}
+                </Button>
               )}
             </div>
           </div>
         ))}
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   )
 }
 
@@ -441,7 +935,7 @@ function KeyInfoSection({ keyInfo }: { keyInfo: ComprehensiveAnalysis['keyInfo']
 function FollowUpSection({ needed, suggestion }: { needed: boolean; suggestion: string }) {
   if (!needed) return null
   return (
-    <div className="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200/80 rounded-2xl p-4 flex items-start gap-3">
+    <div className="rounded-2xl border border-amber-200/80 bg-[linear-gradient(135deg,rgba(255,251,235,1),rgba(255,255,255,1))] p-4 flex items-start gap-3 shadow-sm">
       <div className="w-9 h-9 bg-orange-100 rounded-xl flex items-center justify-center shrink-0">
         <Clock className="w-4 h-4 text-orange-600" />
       </div>
@@ -455,7 +949,7 @@ function FollowUpSection({ needed, suggestion }: { needed: boolean; suggestion: 
 
 // ─── Compose panel with AI writing tools ────────────────────────
 
-function ComposePanel({ thread, initialText, meta, onUpdateDraft, onClose, isAuthenticated, senderName, recipientName }: {
+function ComposePanel({ thread, initialText, meta, onUpdateDraft, onClose, isAuthenticated, senderName, recipientName, userEmail, onSent }: {
   thread: Thread; initialText: string; meta: ThreadMeta
   onUpdateDraft: (text: string) => void; onClose: () => void; isAuthenticated?: boolean
   senderName?: string; recipientName?: string
@@ -820,11 +1314,14 @@ export default function InboxPage() {
   const [filterRead, setFilterRead] = useState<FilterRead>('all')
   const [calendarEvents, setCalendarEvents] = useState<SyncedCalendarEvent[]>([])
   const [calendarLoading, setCalendarLoading] = useState(false)
+  const [calendarError, setCalendarError] = useState<string | null>(null)
+  const [gmailError, setGmailError] = useState<string | null>(null)
+  const [calendarDate, setCalendarDate] = useState<Date>(new Date())
   const filterRef = useRef<HTMLDivElement>(null)
 
-  const selectedThread = threads.find(t => t.id === selectedId) ?? null
   const getMeta = (id: string): ThreadMeta => metas[id] ?? defaultMeta
   const isSidebarOpen = sidebarPinned || sidebarExpanded
+  const isCalendarView = folder === 'calendar'
   const isOwnEmail = useCallback((email: string) => {
     const normalized = normalizeEmail(email)
     return userEmail ? normalized === normalizeEmail(userEmail) : normalized.includes('you@')
@@ -846,17 +1343,23 @@ export default function InboxPage() {
   const fetchGmailThreads = useCallback(async (query?: string) => {
     if (!isAuthenticated) return
     setGmailLoading(true)
+    setGmailError(null)
     try {
       const url = new URL('/api/gmail/threads', window.location.origin)
       url.searchParams.set('q', query ? `in:anywhere ${query}` : 'in:anywhere')
       const res = await fetch(url.toString())
-      if (res.ok) {
-        const data = await res.json()
-        if (data.threads?.length > 0) {
-          setThreads(data.threads as Thread[])
-        }
+      if (!res.ok) throw new Error('Mail sync failed')
+
+      const data = await res.json()
+      if (Array.isArray(data.threads)) {
+        setThreads(data.threads as Thread[])
+      } else {
+        setThreads([])
       }
-    } catch (err) { console.error('Gmail fetch error:', err) }
+    } catch (err) {
+      console.error('Gmail fetch error:', err)
+      setGmailError('Mail sync failed. You can keep using cached conversations and try refreshing again.')
+    }
     finally { setGmailLoading(false) }
   }, [isAuthenticated])
 
@@ -871,7 +1374,9 @@ export default function InboxPage() {
     setMetas(merged)
     saveJson(LS_META, merged)
     setAllUserLabels(loadJson<string[]>(LS_LABELS, ['Important', 'Follow-up', 'Receipts', 'Travel', 'Project']))
-    setSidebarPinned(loadJson<boolean>(LS_SIDEBAR_PINNED, false))
+    const storedSidebarPinned = loadJson<boolean>(LS_SIDEBAR_PINNED, true)
+    setSidebarPinned(storedSidebarPinned)
+    setSidebarExpanded(storedSidebarPinned)
   }, [])
 
   useEffect(() => {
@@ -888,10 +1393,12 @@ export default function InboxPage() {
   const fetchCalendarEvents = useCallback(async () => {
     if (!isAuthenticated) {
       setCalendarEvents([])
+      setCalendarError(null)
       return
     }
 
     setCalendarLoading(true)
+    setCalendarError(null)
     try {
       const res = await fetch('/api/calendar/events')
       if (!res.ok) throw new Error('Calendar sync failed')
@@ -900,6 +1407,7 @@ export default function InboxPage() {
     } catch (err) {
       console.error('Calendar fetch error:', err)
       setCalendarEvents([])
+      setCalendarError('Calendar sync failed. Refresh to retry or reconnect your Google account.')
     } finally {
       setCalendarLoading(false)
     }
@@ -910,6 +1418,7 @@ export default function InboxPage() {
       fetchCalendarEvents()
     } else {
       setCalendarEvents([])
+      setCalendarError(null)
     }
   }, [isAuthenticated, isAuthLoading, fetchCalendarEvents])
 
@@ -1125,12 +1634,26 @@ export default function InboxPage() {
   const activeFiltersCount = (filterPriority !== 'all' ? 1 : 0) + (filterCategory !== 'all' ? 1 : 0) + (filterRead !== 'all' ? 1 : 0)
 
   const clearFilters = () => { setFilterPriority('all'); setFilterCategory('all'); setFilterRead('all') }
+  const clearSearch = () => setSearch('')
+
+  const handleFolderChange = useCallback((nextFolder: SidebarFolder) => {
+    setFolder(nextFolder)
+    setShowCompose(false)
+    setComposeInitial('')
+    setShowFilterMenu(false)
+    if (nextFolder === 'calendar') {
+      setActiveTab('emails')
+    }
+  }, [])
 
   // Filter threads by folder + search + filters
   const filteredThreads = threads.filter(t => {
+    if (folder === 'calendar') return false
+
     const m = getMeta(t.id)
     const isGmailThread = Array.isArray(t.gmailLabels) && t.gmailLabels.length > 0
     const isSentThread = isGmailThread ? hasGmailLabel(t, 'SENT') : t.emails.some(e => isOwnEmail(e.from.email))
+    const analysis = analyses[t.id]
 
     switch (folder) {
       case 'inbox':
@@ -1149,16 +1672,33 @@ export default function InboxPage() {
 
     if (search) {
       const q = search.toLowerCase()
-      if (!t.subject.toLowerCase().includes(q) && !t.from.name.toLowerCase().includes(q) && !t.preview.toLowerCase().includes(q)) return false
+      const searchableValues = [
+        t.subject,
+        t.from.name,
+        t.from.email,
+        t.preview,
+        t.category,
+        ...t.emails.flatMap(email => [
+          email.subject,
+          email.body,
+          email.from.name,
+          email.from.email,
+          ...email.to.flatMap(recipient => [recipient.name, recipient.email]),
+        ]),
+        ...m.userLabels,
+        ...(analysis?.labels ?? []),
+        analysis?.category ?? '',
+      ]
+
+      if (!searchableValues.some(value => value.toLowerCase().includes(q))) return false
     }
 
     // Apply filters
     if (filterRead === 'read' && !m.read) return false
     if (filterRead === 'unread' && m.read) return false
 
-    const analysis = analyses[t.id]
-    if (filterPriority !== 'all' && analysis && analysis.priority !== filterPriority) return false
-    if (filterCategory !== 'all' && analysis && analysis.category !== filterCategory) return false
+    if (filterPriority !== 'all' && (!analysis || analysis.priority !== filterPriority)) return false
+    if (filterCategory !== 'all' && (!analysis || analysis.category !== filterCategory)) return false
 
     return true
   })
@@ -1180,27 +1720,61 @@ export default function InboxPage() {
     return isSentThread && !getMeta(t.id).trashed
   }).length
 
-  const selectedAnalysis = selectedId ? analyses[selectedId] : null
-  const isLoadingSelected = selectedId ? loadingThreads.has(selectedId) : false
+  const selectedThread = filteredThreads.find(t => t.id === selectedId) ?? null
+  const selectedAnalysis = selectedThread ? analyses[selectedThread.id] : null
+  const isLoadingSelected = selectedThread ? loadingThreads.has(selectedThread.id) : false
+
+  useEffect(() => {
+    if (isCalendarView) {
+      if (showCompose) setShowCompose(false)
+      return
+    }
+
+    if (filteredThreads.length === 0) {
+      if (selectedId !== null) setSelectedId(null)
+      if (showCompose) setShowCompose(false)
+      if (composeInitial) setComposeInitial('')
+      if (activeTab !== 'emails') setActiveTab('emails')
+      return
+    }
+
+    if (!selectedId || !filteredThreads.some(thread => thread.id === selectedId)) {
+      setSelectedId(filteredThreads[0].id)
+      if (showCompose) setShowCompose(false)
+      if (composeInitial) setComposeInitial('')
+      if (activeTab !== 'emails') setActiveTab('emails')
+    }
+  }, [activeTab, composeInitial, filteredThreads, isCalendarView, selectedId, showCompose])
 
   // Determine sender and recipient names for the compose panel
   const currentSenderName = userName || undefined
   const currentRecipientName = selectedThread?.from.name || undefined
+  const availableThreadLabels = selectedThread
+    ? allUserLabels.filter(label => !getMeta(selectedThread.id).userLabels.includes(label))
+    : []
 
   return (
     <div className="h-screen flex flex-col bg-gray-50/50">
       {/* Top bar */}
-      <header className="border-b border-gray-200/80 bg-white/80 backdrop-blur-xl h-14 flex items-center px-4 gap-4 shrink-0 shadow-sm shadow-gray-100/50">
+      <header className="border-b border-gray-200/80 bg-white/80 backdrop-blur-xl h-16 flex items-center px-4 gap-4 shrink-0 shadow-sm shadow-gray-100/50">
         <NextLink href="/" className="hover:opacity-80 transition-opacity">
           <Logo size="sm" />
         </NextLink>
 
         <div className="flex-1 max-w-lg relative">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <Input value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Search emails..."
-            className="pl-10 text-sm h-10 bg-gray-50/80 border-gray-200 rounded-xl focus:bg-white transition-colors" />
-          {search && <button onClick={() => setSearch('')} className="absolute right-3.5 top-1/2 -translate-y-1/2"><X className="w-3.5 h-3.5 text-gray-400" /></button>}
+          <Input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder={isCalendarView ? 'Calendar workspace is active' : 'Search emails, contacts, labels, and thread content...'}
+            disabled={isCalendarView}
+            className="pl-10 text-sm h-10 bg-gray-50/80 border-gray-200 rounded-xl focus:bg-white transition-colors disabled:cursor-not-allowed disabled:opacity-70"
+          />
+          {search && !isCalendarView && (
+            <button onClick={clearSearch} className="absolute right-3.5 top-1/2 -translate-y-1/2">
+              <X className="w-3.5 h-3.5 text-gray-400" />
+            </button>
+          )}
         </div>
 
         <div className="flex items-center gap-2 ml-auto">
@@ -1209,41 +1783,70 @@ export default function InboxPage() {
           {/* Refresh button */}
           {isAuthenticated && (
             <Button variant="outline" size="sm" onClick={handleRefresh} disabled={gmailLoading}
-              className="rounded-xl" title="Refresh emails">
+              className="rounded-full" title="Refresh emails">
               <RefreshCw className={`w-4 h-4 ${gmailLoading ? 'animate-spin' : ''}`} />
             </Button>
           )}
 
           {/* Compose new email */}
           <Button variant="outline" size="sm" onClick={() => setShowNewCompose(true)}
-            className="rounded-xl">
+            className="rounded-full">
             <PenSquare className="w-4 h-4 mr-1.5" /> Compose
           </Button>
 
           {isAuthenticated && (
             <>
-              <span className="text-[11px] text-emerald-700 font-semibold bg-emerald-50 px-3 py-1.5 rounded-full flex items-center gap-1.5 border border-emerald-200/60">
+              <Badge variant="outline" className="rounded-full border-emerald-200 bg-emerald-50 px-3 py-1.5 text-emerald-700">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Gmail Connected
-              </span>
-              <span className="text-[11px] text-blue-700 font-semibold bg-blue-50 px-3 py-1.5 rounded-full flex items-center gap-1.5 border border-blue-200/60">
+              </Badge>
+              <Badge variant="outline" className="rounded-full border-blue-200 bg-blue-50 px-3 py-1.5 text-blue-700">
                 {calendarLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <CalendarDays className="w-3 h-3" />}
                 {calendarEvents[0] ? `Calendar synced · ${formatCalendarEventLabel(calendarEvents[0].start)}` : 'Calendar synced'}
-              </span>
+              </Badge>
             </>
           )}
 
           <Button variant="outline" size="sm" onClick={() => setShowChat(!showChat)}
-            className={`rounded-xl ${showChat ? 'bg-blue-50 border-blue-200 text-blue-700' : ''}`}>
+            className={`rounded-full ${showChat ? 'bg-blue-50 border-blue-200 text-blue-700' : ''}`}>
             <Bot className="w-4 h-4 mr-1.5" /> AI Chat
           </Button>
 
           {isAuthenticated ? (
-            <Button variant="outline" size="sm" onClick={() => signOut()} className="rounded-xl">
-              <LogOut className="w-4 h-4 mr-1.5" /> {session?.user?.name?.split(' ')[0] ?? 'Sign out'}
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="flex items-center gap-3 rounded-full border border-gray-200 bg-white pl-2 pr-3 py-1.5 shadow-sm transition-colors hover:bg-gray-50">
+                  <Avatar className="h-9 w-9 border border-gray-200">
+                    <AvatarImage src={session?.user?.image ?? ''} alt={session?.user?.name ?? 'User'} />
+                    <AvatarFallback className="bg-slate-100 text-slate-700">
+                      {session?.user?.name?.charAt(0) ?? 'U'}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="text-left leading-tight">
+                    <p className="max-w-[140px] truncate text-sm font-semibold text-gray-800">
+                      {session?.user?.name ?? 'Connected account'}
+                    </p>
+                    <p className="max-w-[160px] truncate text-xs text-gray-500">
+                      {session?.user?.email ?? 'Google connected'}
+                    </p>
+                  </div>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56 rounded-xl border-gray-200 p-2">
+                <DropdownMenuLabel className="text-xs text-gray-500">Connected Google account</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="rounded-lg text-sm">
+                  <Mail className="w-4 h-4 text-gray-400" />
+                  {session?.user?.email ?? 'No email available'}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => signOut()} className="rounded-lg text-sm">
+                  <LogOut className="w-4 h-4 text-gray-400" />
+                  Sign out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           ) : (
             <Button variant="outline" size="sm" onClick={() => signIn('google', { callbackUrl: '/inbox' })}
-              className="rounded-xl border-blue-200 text-blue-700 hover:bg-blue-50">
+              className="rounded-full border-blue-200 text-blue-700 hover:bg-blue-50">
               <LogIn className="w-4 h-4 mr-1.5" /> Connect Gmail
             </Button>
           )}
@@ -1253,18 +1856,42 @@ export default function InboxPage() {
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar — collapsed (icons only) by default, expands on hover */}
         <aside
-          onMouseEnter={() => { if (!sidebarPinned) setSidebarExpanded(true) }}
-          onMouseLeave={() => { if (!sidebarPinned) setSidebarExpanded(false) }}
-          className={`border-r border-gray-200/80 bg-white py-3 shrink-0 flex flex-col transition-all duration-200 ease-in-out ${
-            isSidebarOpen ? 'w-56' : 'w-14'
+          onMouseEnter={() => {
+            if (!sidebarPinned) setSidebarExpanded(true)
+          }}
+          onMouseLeave={() => {
+            if (!sidebarPinned) setSidebarExpanded(false)
+          }}
+          className={`border-r border-gray-200/80 bg-white shrink-0 flex flex-col transition-all duration-200 ease-in-out overflow-hidden ${
+            isSidebarOpen ? 'w-60' : 'w-16'
           }`}>
-          <div className={`px-2 mb-3 flex ${isSidebarOpen ? 'justify-end' : 'justify-center'}`}>
+          <ScrollArea className="h-full">
+            <div className="py-3">
+          <div className={`mb-3 flex px-2 ${isSidebarOpen ? 'justify-between' : 'justify-center'}`}>
             <button
               onClick={handleSidebarPinToggle}
-              className="p-2 rounded-xl text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-              title={sidebarPinned ? 'Unpin sidebar' : 'Pin sidebar open'}
+              aria-pressed={sidebarPinned}
+              title={sidebarPinned ? 'Unpin navigation' : 'Pin navigation open'}
+              className={`inline-flex h-10 items-center rounded-xl border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-900 ${
+                isSidebarOpen ? 'w-full justify-between px-3' : 'w-10 justify-center'
+              }`}
             >
-              {sidebarPinned ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+              <span className="inline-flex items-center gap-2">
+                <Menu className="h-4 w-4" />
+                {isSidebarOpen && <span className="text-sm font-medium">Navigation</span>}
+              </span>
+              {isSidebarOpen && (
+                <Badge
+                  variant="outline"
+                  className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
+                    sidebarPinned
+                      ? 'border-blue-200 bg-blue-50 text-blue-700'
+                      : 'border-gray-200 bg-gray-50 text-gray-500'
+                  }`}
+                >
+                  {sidebarPinned ? 'Pinned' : 'Hover'}
+                </Badge>
+              )}
             </button>
           </div>
           <nav className="space-y-0.5 px-2">
@@ -1272,7 +1899,7 @@ export default function InboxPage() {
               const count = counts[item.folder]
               const active = folder === item.folder
               return (
-                <button key={item.folder} onClick={() => setFolder(item.folder)}
+                <button key={item.folder} onClick={() => handleFolderChange(item.folder)}
                   title={!isSidebarOpen ? item.label : undefined}
                   className={`relative w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all ${
                     active
@@ -1305,7 +1932,7 @@ export default function InboxPage() {
                   : <ChevronRight className="w-3 h-3 text-gray-400 group-hover:text-gray-600" />}
               </button>
               {categoriesOpen && Object.entries(categoryConfig).map(([key, val]) => (
-                <button key={key} onClick={() => { setFolder('all'); setSearch(key) }}
+                <button key={key} onClick={() => { handleFolderChange('all'); clearSearch(); setFilterCategory(key as FilterCategory) }}
                   className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-colors font-medium">
                   <span className={`w-2.5 h-2.5 rounded-full ${val.dot}`} />
                   {val.label}
@@ -1343,7 +1970,7 @@ export default function InboxPage() {
                     </div>
                   )}
                   {allUserLabels.map(label => (
-                    <button key={label} onClick={() => { setFolder('all'); setSearch(label.toLowerCase()) }}
+                    <button key={label} onClick={() => { handleFolderChange('all'); setSearch(label.toLowerCase()) }}
                       className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-colors font-medium">
                       <Tag className="w-3.5 h-3.5 text-gray-400" />
                       {label}
@@ -1353,7 +1980,7 @@ export default function InboxPage() {
               )}
             </div>
           )}
-          {isSidebarOpen && isAuthenticated && (
+          {isSidebarOpen && (
             <div className="mt-5 px-2 pb-2 border-t border-gray-100">
               <button onClick={() => setCalendarOpen(!calendarOpen)}
                 className="w-full flex items-center justify-between px-3 pt-4 mb-1 group">
@@ -1367,15 +1994,25 @@ export default function InboxPage() {
               </button>
               {calendarOpen && (
                 <div className="space-y-2 px-3">
+                  <Button variant="outline" size="sm" className="w-full rounded-xl justify-start" onClick={() => handleFolderChange('calendar')}>
+                    <CalendarDays className="w-4 h-4" />
+                    Open calendar workspace
+                  </Button>
+                  {!isAuthenticated && (
+                    <p className="text-xs text-gray-400 py-1">Connect Google to load live events here.</p>
+                  )}
                   {calendarLoading && (
                     <div className="flex items-center gap-2 text-xs text-gray-500 py-2">
                       <Loader2 className="w-3 h-3 animate-spin" /> Syncing upcoming events...
                     </div>
                   )}
-                  {!calendarLoading && calendarEvents.length === 0 && (
+                  {!calendarLoading && calendarError && (
+                    <p className="text-xs text-red-500 py-2">{calendarError}</p>
+                  )}
+                  {!calendarLoading && !calendarError && isAuthenticated && calendarEvents.length === 0 && (
                     <p className="text-xs text-gray-400 py-2">No upcoming events found.</p>
                   )}
-                  {!calendarLoading && calendarEvents.slice(0, 3).map(event => (
+                  {!calendarLoading && !calendarError && calendarEvents.slice(0, 3).map(event => (
                     <a
                       key={event.id}
                       href={event.htmlLink ?? '#'}
@@ -1391,127 +2028,171 @@ export default function InboxPage() {
               )}
             </div>
           )}
+            </div>
+          </ScrollArea>
         </aside>
 
-        {/* Thread list */}
-        <div className="w-80 border-r border-gray-200/80 flex flex-col shrink-0 bg-white">
-          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">
-              {filteredThreads.length} conversation{filteredThreads.length !== 1 ? 's' : ''}
-            </span>
-            <div className="flex items-center gap-1.5">
-              {/* Filter button */}
-              <div ref={filterRef} className="relative">
-                <button onClick={() => setShowFilterMenu(!showFilterMenu)}
-                  className={`p-1.5 rounded-lg transition-colors ${showFilterMenu || activeFiltersCount > 0 ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-100 text-gray-400'}`}
-                  title="Filters">
-                  <Filter className="w-3.5 h-3.5" />
-                  {activeFiltersCount > 0 && (
-                    <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-blue-600 text-white text-[9px] font-bold flex items-center justify-center">
-                      {activeFiltersCount}
-                    </span>
-                  )}
-                </button>
-                {showFilterMenu && (
-                  <div className="absolute right-0 top-full mt-1.5 bg-white border border-gray-200 rounded-xl shadow-xl py-3 px-4 z-30 w-56">
-                    <div className="flex items-center justify-between mb-3">
-                      <p className="text-xs font-bold text-gray-700">Filters</p>
+        {!isCalendarView && (
+          <div className="w-80 border-r border-gray-200/80 flex flex-col shrink-0 bg-white">
+            <div className="px-4 py-3 border-b border-gray-100 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+                  {filteredThreads.length} conversation{filteredThreads.length !== 1 ? 's' : ''}
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <div ref={filterRef} className="relative">
+                    <button onClick={() => setShowFilterMenu(!showFilterMenu)}
+                      className={`p-1.5 rounded-lg transition-colors ${showFilterMenu || activeFiltersCount > 0 ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-100 text-gray-400'}`}
+                      title="Filters">
+                      <Filter className="w-3.5 h-3.5" />
                       {activeFiltersCount > 0 && (
-                        <button onClick={clearFilters} className="text-[10px] text-blue-600 font-semibold hover:underline">Clear all</button>
+                        <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-blue-600 text-white text-[9px] font-bold flex items-center justify-center">
+                          {activeFiltersCount}
+                        </span>
                       )}
-                    </div>
+                    </button>
+                    {showFilterMenu && (
+                      <div className="absolute right-0 top-full mt-1.5 bg-white border border-gray-200 rounded-xl shadow-xl py-3 px-4 z-30 w-56">
+                        <div className="flex items-center justify-between mb-3">
+                          <p className="text-xs font-bold text-gray-700">Filters</p>
+                          {activeFiltersCount > 0 && (
+                            <button onClick={clearFilters} className="text-[10px] text-blue-600 font-semibold hover:underline">Clear all</button>
+                          )}
+                        </div>
 
-                    {/* Read status filter */}
-                    <div className="mb-3">
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Status</p>
-                      <div className="flex gap-1 flex-wrap">
-                        {(['all', 'unread', 'read'] as FilterRead[]).map(v => (
-                          <button key={v} onClick={() => setFilterRead(v)}
-                            className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg transition-all ${
-                              filterRead === v ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                            }`}>
-                            {v === 'all' ? 'All' : v === 'unread' ? 'Unread' : 'Read'}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
+                        <div className="mb-3">
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Status</p>
+                          <div className="flex gap-1 flex-wrap">
+                            {(['all', 'unread', 'read'] as FilterRead[]).map(v => (
+                              <button key={v} onClick={() => setFilterRead(v)}
+                                className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg transition-all ${
+                                  filterRead === v ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                }`}>
+                                {v === 'all' ? 'All' : v === 'unread' ? 'Unread' : 'Read'}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
 
-                    {/* Priority filter */}
-                    <div className="mb-3">
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Priority</p>
-                      <div className="flex gap-1 flex-wrap">
-                        {(['all', 'urgent', 'important', 'normal', 'low'] as FilterPriority[]).map(v => (
-                          <button key={v} onClick={() => setFilterPriority(v)}
-                            className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg transition-all capitalize ${
-                              filterPriority === v ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                            }`}>
-                            {v}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
+                        <div className="mb-3">
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Priority</p>
+                          <div className="flex gap-1 flex-wrap">
+                            {(['all', 'urgent', 'important', 'normal', 'low'] as FilterPriority[]).map(v => (
+                              <button key={v} onClick={() => setFilterPriority(v)}
+                                className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg transition-all capitalize ${
+                                  filterPriority === v ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                }`}>
+                                {v}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
 
-                    {/* Category filter */}
-                    <div>
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Category</p>
-                      <div className="flex gap-1 flex-wrap">
-                        {(['all', 'work', 'personal', 'finance', 'updates', 'spam'] as FilterCategory[]).map(v => (
-                          <button key={v} onClick={() => setFilterCategory(v)}
-                            className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg transition-all capitalize ${
-                              filterCategory === v ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                            }`}>
-                            {v}
-                          </button>
-                        ))}
+                        <div>
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Category</p>
+                          <div className="flex gap-1 flex-wrap">
+                            {(['all', 'work', 'personal', 'finance', 'updates', 'spam'] as FilterCategory[]).map(v => (
+                              <button key={v} onClick={() => setFilterCategory(v)}
+                                className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg transition-all capitalize ${
+                                  filterCategory === v ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                }`}>
+                                {v}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
-                )}
+
+                  {isAuthenticated && (
+                    <button onClick={handleRefresh} disabled={gmailLoading}
+                      className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition-colors" title="Refresh">
+                      <RefreshCw className={`w-3.5 h-3.5 ${gmailLoading ? 'animate-spin' : ''}`} />
+                    </button>
+                  )}
+                </div>
               </div>
 
-              {/* Refresh button for thread list */}
-              {isAuthenticated && (
-                <button onClick={handleRefresh} disabled={gmailLoading}
-                  className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition-colors" title="Refresh">
-                  <RefreshCw className={`w-3.5 h-3.5 ${gmailLoading ? 'animate-spin' : ''}`} />
-                </button>
-              )}
-            </div>
-          </div>
-          <div className="flex-1 overflow-y-auto">
-            {filteredThreads.map(t => (
-              <ThreadListItem key={t.id} thread={t} selected={t.id === selectedId}
-                analysis={analyses[t.id]} meta={getMeta(t.id)}
-                onSelect={() => handleSelect(t.id)} onStar={() => handleStar(t.id)} />
-            ))}
-            {filteredThreads.length === 0 && (
-              <div className="py-16 text-center text-gray-400 text-sm">
-                <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
-                  <Inbox className="w-7 h-7 text-gray-300" />
-                </div>
-                <p className="font-medium text-gray-500">
-                  {activeFiltersCount > 0 ? 'No emails match filters' :
-                   folder === 'trash' ? 'Trash is empty' : folder === 'starred' ? 'No starred emails' : folder === 'drafts' ? 'No drafts' : 'No emails found'}
-                </p>
+              <div className="flex flex-wrap gap-2">
+                <Badge variant="outline" className="rounded-full border-gray-200 bg-gray-50 text-gray-600">
+                  {folderMeta[folder].label}
+                </Badge>
+                {search && (
+                  <Badge variant="outline" className="rounded-full border-blue-200 bg-blue-50 text-blue-700">
+                    Search active
+                  </Badge>
+                )}
                 {activeFiltersCount > 0 && (
-                  <button onClick={clearFilters} className="text-xs text-blue-600 font-semibold mt-2 hover:underline">Clear filters</button>
+                  <Badge variant="outline" className="rounded-full border-amber-200 bg-amber-50 text-amber-700">
+                    {activeFiltersCount} filter{activeFiltersCount === 1 ? '' : 's'}
+                  </Badge>
                 )}
               </div>
-            )}
+            </div>
+
+            <ScrollArea className="flex-1">
+              <div className="pb-4">
+                {filteredThreads.map(t => (
+                  <ThreadListItem key={t.id} thread={t} selected={t.id === selectedId}
+                    analysis={analyses[t.id]} meta={getMeta(t.id)}
+                    onSelect={() => handleSelect(t.id)} onStar={() => handleStar(t.id)} />
+                ))}
+                {filteredThreads.length === 0 && (
+                  <FolderEmptyState
+                    folder={folder}
+                    search={search}
+                    hasFilters={activeFiltersCount > 0}
+                    isAuthenticated={isAuthenticated}
+                    compact
+                    onClearSearch={clearSearch}
+                    onClearFilters={clearFilters}
+                    onRefresh={handleRefresh}
+                  />
+                )}
+              </div>
+            </ScrollArea>
           </div>
-        </div>
+        )}
 
         {/* Content */}
         <main className="flex-1 flex overflow-hidden bg-gray-50/50">
-          {!selectedThread ? (
-            <div className="flex-1 flex items-center justify-center">
-              <div className="text-center">
-                <div className="w-20 h-20 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-3xl flex items-center justify-center mx-auto mb-5">
-                  <Mail className="w-10 h-10 text-blue-300" />
-                </div>
-                <p className="text-base font-semibold text-gray-500">Select an email to read</p>
-                <p className="text-sm text-gray-400 mt-1.5">Click on AI Analysis tab to get insights</p>
-              </div>
+          {isCalendarView ? (
+            <CalendarWorkspace
+              events={calendarEvents}
+              loading={calendarLoading}
+              error={calendarError}
+              selectedDate={calendarDate}
+              onDateSelect={date => date && setCalendarDate(date)}
+              onRefresh={handleRefresh}
+              onConnect={() => signIn('google', { callbackUrl: '/inbox' })}
+              isAuthenticated={isAuthenticated}
+            />
+          ) : filteredThreads.length === 0 ? (
+            <div className="flex-1 p-6">
+              <FolderEmptyState
+                folder={folder}
+                search={search}
+                hasFilters={activeFiltersCount > 0}
+                isAuthenticated={isAuthenticated}
+                onClearSearch={clearSearch}
+                onClearFilters={clearFilters}
+                onRefresh={handleRefresh}
+              />
+            </div>
+          ) : !selectedThread ? (
+            <div className="flex-1 p-6">
+              <Empty className="min-h-full rounded-[1.75rem] border border-dashed border-gray-200 bg-white/80 shadow-sm">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon" className="size-16 rounded-3xl bg-blue-50 text-blue-700">
+                    <Mail className="size-8" />
+                  </EmptyMedia>
+                  <EmptyTitle>Select an email to read</EmptyTitle>
+                  <EmptyDescription>
+                    Choose any conversation from the list to open the thread and run AI analysis when you need it.
+                  </EmptyDescription>
+                </EmptyHeader>
+              </Empty>
             </div>
           ) : (
             <div className="flex-1 flex flex-col overflow-hidden bg-white">
@@ -1523,6 +2204,11 @@ export default function InboxPage() {
                     <p className="text-sm text-gray-500 mt-1 font-medium">
                       {selectedThread.from.name} &middot; {selectedThread.emails.length} message{selectedThread.emails.length !== 1 ? 's' : ''}
                     </p>
+                    {gmailError && (
+                      <p className="mt-3 inline-flex rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
+                        {gmailError}
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center gap-1 shrink-0 ml-4">
                     {selectedAnalysis && <PriorityBadge priority={selectedAnalysis.priority} />}
@@ -1554,27 +2240,33 @@ export default function InboxPage() {
                 {/* User labels on thread */}
                 <div className="flex items-center gap-2 mt-3 flex-wrap">
                   {getMeta(selectedThread.id).userLabels.map(label => (
-                    <span key={label} className="inline-flex items-center gap-1 text-[11px] bg-indigo-50 text-indigo-700 rounded-full px-2.5 py-1 font-semibold border border-indigo-100">
+                    <Badge key={label} variant="outline" className="rounded-full border-indigo-100 bg-indigo-50 text-indigo-700">
                       <Tag className="w-2.5 h-2.5" />{label}
                       <button onClick={() => handleRemoveLabel(selectedThread.id, label)} className="hover:text-red-500 ml-0.5 transition-colors"><X className="w-2.5 h-2.5" /></button>
-                    </span>
+                    </Badge>
                   ))}
-                  <div className="relative group">
-                    <button className="inline-flex items-center gap-1 text-[11px] text-gray-400 hover:text-blue-600 rounded-full px-2.5 py-1 border border-dashed border-gray-300 hover:border-blue-400 transition-colors font-medium">
-                      <Tag className="w-2.5 h-2.5" /> Add label
-                    </button>
-                    <div className="absolute top-full left-0 mt-1.5 bg-white border border-gray-200 rounded-xl shadow-xl py-1.5 z-20 hidden group-hover:block min-w-[160px]">
-                      {allUserLabels.filter(l => !getMeta(selectedThread.id).userLabels.includes(l)).map(label => (
-                        <button key={label} onClick={() => handleAddLabel(selectedThread.id, label)}
-                          className="w-full text-left px-4 py-2 text-xs text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition-colors font-medium">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button className="inline-flex items-center gap-1 text-[11px] text-gray-500 hover:text-slate-900 rounded-full px-2.5 py-1 border border-dashed border-gray-300 hover:border-slate-400 transition-colors font-medium">
+                        <Tag className="w-2.5 h-2.5" /> Add label
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-48 rounded-xl border-gray-200 p-2">
+                      <DropdownMenuLabel className="text-xs text-gray-500">Apply a label</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      {availableThreadLabels.map(label => (
+                        <DropdownMenuItem key={label} onClick={() => handleAddLabel(selectedThread.id, label)} className="rounded-lg text-sm">
+                          <Tag className="w-3.5 h-3.5 text-gray-400" />
                           {label}
-                        </button>
+                        </DropdownMenuItem>
                       ))}
-                      {allUserLabels.filter(l => !getMeta(selectedThread.id).userLabels.includes(l)).length === 0 && (
-                        <p className="px-4 py-2 text-xs text-gray-400">All labels applied</p>
+                      {availableThreadLabels.length === 0 && (
+                        <DropdownMenuItem disabled className="rounded-lg text-sm text-gray-400">
+                          All labels already applied
+                        </DropdownMenuItem>
                       )}
-                    </div>
-                  </div>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
 
                 {/* Tabs — Emails first (default), then Analysis */}
@@ -1602,6 +2294,19 @@ export default function InboxPage() {
               <div className="flex-1 overflow-y-auto">
                 {activeTab === 'emails' ? (
                   <div className="p-6 space-y-4 max-w-3xl">
+                    {selectedThread.emails.length === 0 && (
+                      <Empty className="rounded-[1.5rem] border border-dashed border-gray-200 bg-gray-50/70">
+                        <EmptyHeader>
+                          <EmptyMedia variant="icon" className="size-14 rounded-3xl bg-gray-100 text-gray-600">
+                            <Mail className="size-7" />
+                          </EmptyMedia>
+                          <EmptyTitle>No messages available</EmptyTitle>
+                          <EmptyDescription>
+                            This thread is present, but there are no message bodies available to display yet.
+                          </EmptyDescription>
+                        </EmptyHeader>
+                      </Empty>
+                    )}
                     {selectedThread.emails.map(email => (
                       <div key={email.id} className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
                         <div className="flex items-center justify-between mb-3">
@@ -1632,7 +2337,7 @@ export default function InboxPage() {
                     ))}
 
                     {/* Reply button in emails tab */}
-                    {!showCompose && (
+                    {!showCompose && selectedThread.emails.length > 0 && (
                       <button onClick={() => { setComposeInitial(''); setShowCompose(true) }}
                         className="inline-flex items-center gap-2.5 text-sm font-semibold text-blue-700 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 px-5 py-3 rounded-xl transition-all border border-blue-200/60">
                         <CornerUpLeft className="w-4 h-4" /> Reply
@@ -1651,9 +2356,9 @@ export default function InboxPage() {
                       </div>
                     ) : selectedAnalysis ? (
                       <>
-                        <SummarySection analysis={selectedAnalysis} />
+                        <SummarySection thread={selectedThread} analysis={selectedAnalysis} meta={getMeta(selectedThread.id)} />
                         <FollowUpSection needed={selectedAnalysis.followUpNeeded} suggestion={selectedAnalysis.followUpSuggestion} />
-                        <SmartRepliesSection replies={selectedAnalysis.smartReplies} onUseReply={handleUseReply} />
+                        <SmartRepliesSection thread={selectedThread} analysis={selectedAnalysis} onUseReply={handleUseReply} />
                         <DraftReplySection draft={selectedAnalysis.draftReply} />
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                           <MeetingsSection meetings={selectedAnalysis.meetings} isAuthenticated={isAuthenticated} />
@@ -1670,7 +2375,17 @@ export default function InboxPage() {
                         )}
                       </>
                     ) : (
-                      <div className="py-20 text-center text-gray-400"><p className="text-sm font-medium">Analysis unavailable.</p></div>
+                      <Empty className="rounded-[1.5rem] border border-dashed border-gray-200 bg-gray-50/60 py-20">
+                        <EmptyHeader>
+                          <EmptyMedia variant="icon" className="size-14 rounded-3xl bg-gray-100 text-gray-600">
+                            <Sparkles className="size-7" />
+                          </EmptyMedia>
+                          <EmptyTitle>Analysis unavailable</EmptyTitle>
+                          <EmptyDescription>
+                            MailMate could not prepare insights for this thread yet. Refresh or switch to another conversation.
+                          </EmptyDescription>
+                        </EmptyHeader>
+                      </Empty>
                     )}
                   </div>
                 )}

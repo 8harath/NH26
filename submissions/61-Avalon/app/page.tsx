@@ -4,76 +4,79 @@ import {
   ListChecks, MessageSquare, Play, Shield, Sparkles, Tags, Zap
 } from 'lucide-react'
 import { Logo } from '@/components/logo'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
 
 const features = [
   {
     icon: Brain,
     title: 'Auto Categorization',
     desc: 'Instantly sorts emails into Work, Personal, Finance, Updates, or Spam.',
-    color: 'from-cyan-500/10 to-blue-500/10 border-cyan-200/60',
-    iconColor: 'text-cyan-700',
+    color: 'from-slate-100 to-white border-slate-200/80',
+    iconColor: 'text-slate-700',
   },
   {
     icon: Zap,
     title: 'Smart Priority Inbox',
     desc: 'Classifies every thread as Urgent, Important, Normal, or Low Priority.',
-    color: 'from-amber-500/10 to-orange-500/10 border-amber-200/60',
-    iconColor: 'text-amber-700',
+    color: 'from-blue-50 to-white border-blue-200/70',
+    iconColor: 'text-blue-700',
   },
   {
     icon: MessageSquare,
     title: 'One-Click Smart Replies',
     desc: 'AI generates context-aware responses you can refine and send immediately.',
-    color: 'from-blue-500/10 to-sky-500/10 border-blue-200/60',
+    color: 'from-slate-50 to-white border-slate-200/70',
     iconColor: 'text-blue-700',
   },
   {
     icon: Sparkles,
     title: 'Context-Aware Drafts',
     desc: 'Full reply drafts that use thread history, sender context, and meeting intent.',
-    color: 'from-indigo-500/10 to-cyan-500/10 border-indigo-200/60',
-    iconColor: 'text-indigo-700',
+    color: 'from-blue-50 to-slate-50 border-blue-200/70',
+    iconColor: 'text-slate-700',
   },
   {
     icon: Calendar,
     title: 'Calendar Sync',
     desc: 'Detects meetings and keeps Google Calendar available for quick approval.',
-    color: 'from-emerald-500/10 to-teal-500/10 border-emerald-200/60',
+    color: 'from-emerald-50 to-white border-emerald-200/70',
     iconColor: 'text-emerald-700',
   },
   {
     icon: ListChecks,
     title: 'Task Extraction',
     desc: 'Converts action items into tasks with deadlines and clear follow-up signals.',
-    color: 'from-rose-500/10 to-orange-500/10 border-rose-200/60',
-    iconColor: 'text-rose-700',
+    color: 'from-slate-100 to-white border-slate-200/70',
+    iconColor: 'text-slate-700',
   },
   {
     icon: Clock,
     title: 'Follow-Up Reminders',
     desc: 'Detects expected responses and surfaces when to follow up next.',
-    color: 'from-sky-500/10 to-cyan-500/10 border-sky-200/60',
-    iconColor: 'text-sky-700',
+    color: 'from-blue-50 to-white border-blue-200/70',
+    iconColor: 'text-blue-700',
   },
   {
     icon: FileSearch,
     title: 'Key Info Extraction',
     desc: 'Pulls out dates, links, contacts, and amounts from dense threads.',
-    color: 'from-teal-500/10 to-emerald-500/10 border-teal-200/60',
-    iconColor: 'text-teal-700',
+    color: 'from-slate-50 to-white border-slate-200/70',
+    iconColor: 'text-slate-700',
   },
   {
     icon: Tags,
     title: 'Auto Labeling',
     desc: 'Suggests labels for easier organization and faster inbox cleanup later.',
-    color: 'from-fuchsia-500/10 to-pink-500/10 border-fuchsia-200/60',
-    iconColor: 'text-fuchsia-700',
+    color: 'from-blue-50 to-white border-blue-200/70',
+    iconColor: 'text-blue-700',
   },
   {
     icon: Shield,
     title: 'Human Approval Layer',
     desc: 'AI prepares the next step, but you review and approve before execution.',
-    color: 'from-slate-500/10 to-gray-500/10 border-slate-200/60',
+    color: 'from-slate-100 to-white border-slate-200/80',
     iconColor: 'text-slate-700',
   },
 ]
@@ -99,46 +102,42 @@ const heroStats = [
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-[linear-gradient(180deg,#f8fbff_0%,#ffffff_28%,#f6fbff_100%)]">
+    <main className="min-h-screen bg-[linear-gradient(180deg,#f6f8fb_0%,#ffffff_28%,#f6f7f9_100%)]">
       <nav className="sticky top-0 z-50 border-b border-white/70 bg-white/80 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
           <Logo />
           <div className="flex items-center gap-3">
-            <Link
-              href="/inbox"
-              className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
-            >
-              Open Inbox <ChevronRight className="h-4 w-4" />
-            </Link>
-            <Link
-              href="/auth/signin"
-              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 px-5 py-2 text-sm font-semibold text-white shadow-sm shadow-cyan-500/20 transition-all hover:from-blue-700 hover:to-cyan-600"
-            >
-              Get Started
-            </Link>
+            <Button asChild variant="ghost" className="rounded-full text-sm text-gray-600 hover:text-gray-900">
+              <Link href="/inbox">
+                Open Inbox <ChevronRight className="h-4 w-4" />
+              </Link>
+            </Button>
+            <Button asChild className="rounded-full bg-gradient-to-r from-slate-900 to-blue-800 px-5 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:from-slate-950 hover:to-blue-900">
+              <Link href="/auth/signin">Get Started</Link>
+            </Button>
           </div>
         </div>
       </nav>
 
-      <section className="relative overflow-hidden px-6 pb-20 pt-20">
+      <section className="relative overflow-hidden px-6 pb-24 pt-20">
         <div className="absolute inset-0 -z-10">
-          <div className="absolute -right-10 top-0 h-96 w-96 rounded-full bg-cyan-100/70 blur-3xl" />
-          <div className="absolute bottom-0 left-0 h-80 w-80 rounded-full bg-blue-100/60 blur-3xl" />
-          <div className="absolute left-1/2 top-1/2 h-[680px] w-[680px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-br from-cyan-50/70 to-blue-50/30 blur-3xl" />
+          <div className="animate-glow-pulse absolute -right-10 top-0 h-96 w-96 rounded-full bg-slate-200/60 blur-3xl" />
+          <div className="animate-float-slow absolute bottom-0 left-0 h-80 w-80 rounded-full bg-blue-100/40 blur-3xl" />
+          <div className="animate-float-reverse absolute left-1/2 top-1/2 h-[680px] w-[680px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-br from-slate-100/80 to-blue-50/30 blur-3xl" />
         </div>
 
         <div className="mx-auto grid max-w-6xl items-center gap-12 lg:grid-cols-[1.08fr_0.92fr]">
           <div>
-            <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-cyan-200/80 bg-white/90 px-4 py-2 text-sm font-medium text-cyan-800 shadow-sm shadow-cyan-100/60 backdrop-blur">
+            <Badge variant="outline" className="mb-8 inline-flex items-center gap-2 rounded-full border-slate-200 bg-white/90 px-4 py-2 text-sm font-medium text-slate-700 shadow-sm backdrop-blur">
               <Sparkles className="h-4 w-4" />
               Agentic inbox copilot
-              <span className="h-1 w-1 rounded-full bg-cyan-500" />
-              <span className="text-cyan-600">Built for Gmail + Calendar</span>
-            </div>
+              <span className="h-1 w-1 rounded-full bg-blue-600" />
+              <span className="text-blue-700">Built for Gmail + Calendar</span>
+            </Badge>
 
             <h1 className="text-5xl font-bold leading-[1.02] tracking-tight text-gray-950 sm:text-6xl lg:text-7xl">
               Your inbox,
-              <span className="block bg-gradient-to-r from-blue-700 via-cyan-600 to-sky-500 bg-clip-text text-transparent">
+              <span className="block bg-gradient-to-r from-slate-900 via-slate-700 to-blue-700 bg-clip-text text-transparent">
                 ready to act.
               </span>
             </h1>
@@ -149,47 +148,48 @@ export default function Home() {
             </p>
 
             <div className="mt-10 flex flex-wrap items-center gap-4">
-              <Link
-                href="/auth/signin"
-                className="inline-flex items-center gap-2.5 rounded-2xl bg-gradient-to-r from-blue-600 to-cyan-500 px-8 py-4 text-base font-semibold text-white shadow-lg shadow-cyan-500/20 transition-all hover:-translate-y-0.5 hover:from-blue-700 hover:to-cyan-600 hover:shadow-xl hover:shadow-cyan-500/25"
-              >
-                Connect Google Workspace <ArrowRight className="h-5 w-5" />
-              </Link>
-              <Link
-                href="/inbox"
-                className="inline-flex items-center gap-2.5 rounded-2xl border border-gray-200 bg-white px-8 py-4 text-base font-semibold text-gray-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-gray-50 hover:shadow-md"
-              >
-                <Play className="h-4 w-4 fill-current" /> Explore demo inbox
-              </Link>
+              <Button asChild size="lg" className="rounded-2xl bg-gradient-to-r from-slate-900 to-blue-800 px-8 text-base font-semibold text-white shadow-lg shadow-slate-900/15 transition-all hover:-translate-y-0.5 hover:from-slate-950 hover:to-blue-900">
+                <Link href="/auth/signin">
+                  Connect Google Workspace <ArrowRight className="h-5 w-5" />
+                </Link>
+              </Button>
+              <Button asChild variant="outline" size="lg" className="rounded-2xl border-gray-200 bg-white px-8 text-base font-semibold text-gray-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-gray-50 hover:shadow-md">
+                <Link href="/inbox">
+                  <Play className="h-4 w-4 fill-current" /> Explore demo inbox
+                </Link>
+              </Button>
             </div>
 
             <div className="mt-8 flex flex-wrap gap-3">
               {trustSignals.map(signal => (
-                <div
+                <Badge
                   key={signal}
-                  className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white/90 px-4 py-2 text-sm text-gray-600 shadow-sm shadow-gray-100/70"
+                  variant="outline"
+                  className="inline-flex items-center gap-2 rounded-full border-gray-200 bg-white/90 px-4 py-2 text-sm text-gray-600 shadow-sm shadow-gray-100/70"
                 >
                   <Shield className="h-4 w-4 text-cyan-700" />
                   {signal}
-                </div>
+                </Badge>
               ))}
             </div>
 
             <div className="mt-10 grid gap-4 sm:grid-cols-3">
               {heroStats.map(stat => (
-                <div
+                <Card
                   key={stat.label}
-                  className="rounded-3xl border border-gray-200/80 bg-white/90 p-5 shadow-sm shadow-gray-100/80 backdrop-blur"
+                  className="animate-slide-up rounded-3xl border-gray-200/80 bg-white/90 shadow-sm shadow-gray-100/80 backdrop-blur"
                 >
-                  <p className="text-3xl font-bold text-gray-950">{stat.value}</p>
-                  <p className="mt-2 text-sm leading-relaxed text-gray-500">{stat.label}</p>
-                </div>
+                  <CardContent className="p-5">
+                    <p className="text-3xl font-bold text-gray-950">{stat.value}</p>
+                    <p className="mt-2 text-sm leading-relaxed text-gray-500">{stat.label}</p>
+                  </CardContent>
+                </Card>
               ))}
             </div>
           </div>
 
           <div className="relative">
-            <div className="absolute -inset-6 rounded-[2rem] bg-gradient-to-br from-cyan-100/60 via-blue-100/30 to-transparent blur-2xl" />
+            <div className="animate-glow-pulse absolute -inset-6 rounded-[2rem] bg-gradient-to-br from-slate-200/70 via-blue-100/20 to-transparent blur-2xl" />
             <div className="relative overflow-hidden rounded-[2rem] border border-gray-200/80 bg-white/92 shadow-2xl shadow-cyan-100/50">
               <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50/80 px-6 py-4">
                 <div>
@@ -261,10 +261,10 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="border-y border-gray-100/80 bg-gradient-to-b from-gray-50/80 to-white px-6 py-24">
+      <section className="border-y border-gray-100/80 bg-gradient-to-b from-slate-50/80 to-white px-6 py-24">
         <div className="mx-auto max-w-6xl">
           <div className="mb-16 text-center">
-            <p className="mb-3 text-sm font-semibold uppercase tracking-wider text-cyan-700">How it works</p>
+            <p className="mb-3 text-sm font-semibold uppercase tracking-wider text-blue-700">How it works</p>
             <h2 className="text-3xl font-bold text-gray-950 sm:text-4xl">One thread in. A full action plan out.</h2>
             <p className="mx-auto mt-3 max-w-xl text-lg text-gray-500">
               Select an email and MailMate returns summary, priority, a drafted reply, and the next executable steps.
@@ -278,10 +278,10 @@ export default function Home() {
                   <div className="absolute left-full top-12 z-10 hidden h-px w-6 bg-gradient-to-r from-cyan-300 to-transparent lg:block" />
                 )}
                 <div className="group rounded-2xl border border-gray-200/80 bg-white p-6 text-center transition-all hover:-translate-y-1 hover:border-cyan-200/70 hover:shadow-lg">
-                  <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-700 to-cyan-600 text-white shadow-sm shadow-cyan-500/20 transition-shadow group-hover:shadow-md group-hover:shadow-cyan-500/30">
+                  <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-slate-900 to-blue-800 text-white shadow-sm transition-shadow group-hover:shadow-md">
                     <step.icon className="h-5 w-5" />
                   </div>
-                  <span className="text-xs font-bold uppercase tracking-wider text-cyan-700/70">Step {step.step}</span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-blue-700/70">Step {step.step}</span>
                   <p className="mt-1 text-lg font-bold text-gray-950">{step.label}</p>
                   <p className="mt-2 text-sm leading-relaxed text-gray-500">{step.detail}</p>
                 </div>
@@ -294,7 +294,7 @@ export default function Home() {
       <section className="px-6 py-24">
         <div className="mx-auto max-w-6xl">
           <div className="mb-16 text-center">
-            <p className="mb-3 text-sm font-semibold uppercase tracking-wider text-cyan-700">Capabilities</p>
+            <p className="mb-3 text-sm font-semibold uppercase tracking-wider text-blue-700">Capabilities</p>
             <h2 className="text-3xl font-bold text-gray-950 sm:text-4xl">Built to reduce triage work, not just summarize it</h2>
             <p className="mt-3 text-lg text-gray-500">
               Every feature is aimed at moving the user closer to execution with less inbox friction.
@@ -303,22 +303,24 @@ export default function Home() {
 
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {features.map(feature => (
-              <div
+              <Card
                 key={feature.title}
-                className={`group rounded-2xl border bg-gradient-to-br ${feature.color} p-6 transition-all hover:-translate-y-0.5 hover:shadow-lg`}
+                className={`group rounded-2xl border bg-gradient-to-br ${feature.color} py-0 transition-all hover:-translate-y-0.5 hover:shadow-lg`}
               >
-                <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-white/90 shadow-sm transition-shadow group-hover:shadow">
-                  <feature.icon className={`h-5 w-5 ${feature.iconColor}`} />
-                </div>
-                <h3 className="font-bold text-gray-950">{feature.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-gray-600">{feature.desc}</p>
-              </div>
+                <CardContent className="p-6">
+                  <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-white/90 shadow-sm transition-shadow group-hover:shadow">
+                    <feature.icon className={`h-5 w-5 ${feature.iconColor}`} />
+                  </div>
+                  <h3 className="font-bold text-gray-950">{feature.title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-gray-600">{feature.desc}</p>
+                </CardContent>
+              </Card>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="relative overflow-hidden bg-gradient-to-br from-gray-950 via-slate-950 to-cyan-950 px-6 py-24">
+      <section className="relative overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950 px-6 py-24">
         <div className="absolute inset-0 -z-10">
           <div className="absolute right-1/4 top-0 h-72 w-72 rounded-full bg-cyan-500/10 blur-3xl" />
           <div className="absolute bottom-0 left-1/4 h-60 w-60 rounded-full bg-blue-500/10 blur-3xl" />
@@ -329,18 +331,14 @@ export default function Home() {
             Connect Gmail and Calendar, let MailMate prepare the next action, then approve it in seconds.
           </p>
           <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
-            <Link
-              href="/auth/signin"
-              className="inline-flex items-center gap-2.5 rounded-2xl bg-gradient-to-r from-blue-500 to-cyan-500 px-8 py-4 text-base font-semibold text-white shadow-lg shadow-cyan-500/25 transition-all hover:from-blue-400 hover:to-cyan-400"
-            >
-              Start with Google <ArrowRight className="h-5 w-5" />
-            </Link>
-            <Link
-              href="/inbox"
-              className="inline-flex items-center gap-2.5 rounded-2xl border border-white/20 bg-white/10 px-8 py-4 text-base font-semibold text-white backdrop-blur-sm transition-all hover:bg-white/15"
-            >
-              Launch demo inbox
-            </Link>
+            <Button asChild size="lg" className="rounded-2xl bg-gradient-to-r from-slate-900 to-blue-800 px-8 text-base font-semibold text-white shadow-lg shadow-slate-950/20 transition-all hover:from-slate-800 hover:to-blue-700">
+              <Link href="/auth/signin">
+                Start with Google <ArrowRight className="h-5 w-5" />
+              </Link>
+            </Button>
+            <Button asChild variant="outline" size="lg" className="rounded-2xl border-white/20 bg-white/10 px-8 text-base font-semibold text-white backdrop-blur-sm transition-all hover:bg-white/15">
+              <Link href="/inbox">Launch demo inbox</Link>
+            </Button>
           </div>
         </div>
       </section>
