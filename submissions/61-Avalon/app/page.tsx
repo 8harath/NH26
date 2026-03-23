@@ -10,8 +10,8 @@ export default function Home() {
         <div className="max-w-6xl mx-auto flex items-center gap-3">
           <Mail className="w-8 h-8 text-blue-600" />
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Email Triage</h1>
-            <p className="text-sm text-gray-600">AI-powered email analysis</p>
+            <h1 className="text-2xl font-bold text-gray-900">MailMate</h1>
+            <p className="text-sm text-gray-600">AI-powered email assistant</p>
           </div>
         </div>
       </header>
@@ -21,10 +21,10 @@ export default function Home() {
         <div className="space-y-12">
           {/* Hero Section */}
           <section className="text-center space-y-6">
-            <h2 className="text-4xl font-bold text-gray-900">Welcome to Email Triage</h2>
+            <h2 className="text-4xl font-bold text-gray-900">Welcome to MailMate</h2>
             <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              Experience the power of AI-driven email analysis. Automatically summarize threads, extract actions,
-              and generate smart workflows.
+              Your AI-powered email companion. Automatically triage threads, extract action items,
+              draft replies, and stay on top of what matters — all in one intelligent inbox.
             </p>
           </section>
 
@@ -37,7 +37,7 @@ export default function Home() {
                 <h3 className="text-xl font-bold text-gray-900">Interactive Demo</h3>
               </div>
               <p className="text-gray-600 mb-6">
-                See the application in action with pre-loaded sample emails and mock AI analysis. No API key required.
+                See MailMate in action with pre-loaded sample emails and mock AI analysis. No API key required.
               </p>
               <ul className="space-y-2 mb-8 text-sm text-gray-700">
                 <li>✓ Full working interface</li>
@@ -107,14 +107,14 @@ export default function Home() {
               <div>
                 <h4 className="font-semibold text-gray-900 mb-2">3. Navigate to the Full App</h4>
                 <p className="text-gray-600 mb-3">
-                  Once your API key is configured, use the navigation to access the full application. The app will
-                  analyze emails in real-time.
+                  Once your API key is configured, use the navigation to access the full application. MailMate will
+                  analyze emails in real-time with Groq AI.
                 </p>
               </div>
 
               <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
                 <p className="text-sm text-blue-900">
-                  <strong>Note:</strong> The application is set up and ready to use. Simply add your Groq API key and
+                  <strong>Note:</strong> MailMate is set up and ready to use. Simply add your Groq API key and
                   you're good to go.
                 </p>
               </div>
@@ -126,7 +126,7 @@ export default function Home() {
             <h3 className="text-2xl font-bold text-gray-900 mb-6">Key Features</h3>
             <div className="grid md:grid-cols-3 gap-6">
               <div className="p-6 border border-gray-200 rounded-lg">
-                <h4 className="font-semibold text-gray-900 mb-2">Smart Analysis</h4>
+                <h4 className="font-semibold text-gray-900 mb-2">Smart Triage</h4>
                 <p className="text-gray-600 text-sm">
                   AI-powered thread summaries with priority classification (Urgent, Action, FYI)
                 </p>
@@ -140,7 +140,7 @@ export default function Home() {
               <div className="p-6 border border-gray-200 rounded-lg">
                 <h4 className="font-semibold text-gray-900 mb-2">Human-in-the-Loop</h4>
                 <p className="text-gray-600 text-sm">
-                  Review, edit, approve, or regenerate AI suggestions before action
+                  Review, edit, approve, or regenerate AI suggestions before taking action
                 </p>
               </div>
             </div>
@@ -151,7 +151,7 @@ export default function Home() {
       {/* Footer */}
       <footer className="border-t border-gray-200 bg-gray-50 mt-20 py-8 px-6">
         <div className="max-w-6xl mx-auto text-center text-gray-600 text-sm">
-          <p>Email Triage MVP • Built with Next.js and Groq AI</p>
+          <p>MailMate &bull; AI Email Assistant &bull; Built with Next.js and Groq AI</p>
         </div>
       </footer>
     </main>

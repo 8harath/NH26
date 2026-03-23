@@ -8,7 +8,7 @@ import {
 } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
-import { Mail, Calendar, CheckSquare, X, RefreshCw, Check, ChevronDown } from 'lucide-react'
+import { Mail, Calendar, CheckSquare, X, RefreshCw, Check, ChevronDown, Copy } from 'lucide-react'
 
 interface ActionCardsProps {
   actions: (ReplyAction | CalendarAction | TaskAction)[]
@@ -33,6 +33,14 @@ function ReplyActionCard({
 }) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [editedBody, setEditedBody] = useState(action.draftBody)
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(editedBody).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
 
   return (
     <div className="border border-blue-200 bg-blue-50 rounded-lg overflow-hidden">
@@ -73,6 +81,15 @@ function ReplyActionCard({
             >
               <Check className="w-4 h-4 mr-1" />
               Approve
+            </Button>
+            <Button
+              onClick={handleCopy}
+              variant="outline"
+              size="sm"
+              disabled={isRegenerating}
+            >
+              <Copy className="w-4 h-4 mr-1" />
+              {copied ? 'Copied!' : 'Copy'}
             </Button>
             <Button
               onClick={() => onDiscard(action.id)}

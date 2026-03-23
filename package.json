@@ -1,5 +1,8 @@
 {
   "private": true,
+  "dependencies": {
+    "next": "16.2.0"
+  },
   "scripts": {
     "build": "cd submissions/61-Avalon && npm install && npm run build",
     "dev": "cd submissions/61-Avalon && npm run dev",

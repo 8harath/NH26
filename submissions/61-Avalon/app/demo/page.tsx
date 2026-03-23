@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { Mail, Search, Check, X, RefreshCw, AlertCircle, Calendar, CheckSquare, ChevronDown } from 'lucide-react'
+import { Mail, Search, Check, X, Calendar, CheckSquare, ChevronDown, Copy } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 
@@ -25,76 +25,152 @@ const mockThreads = [
   },
   {
     id: 'thread-2',
-    from: { name: 'John Smith', email: 'john.smith@acmecorp.com' },
-    subject: 'Project Timeline Update',
-    preview: 'Here is the updated project timeline for the new mobile app launch...',
-    timestamp: '2024-03-20T14:30:00Z',
-    unreadCount: 0,
+    from: { name: 'Mike Rodriguez', email: 'mike.rodriguez@startup.io' },
+    subject: 'Feature Request: OAuth Integration',
+    preview: 'We have multiple clients requesting OAuth support. This would significantly improve our adoption...',
+    timestamp: '2024-03-20T16:22:00Z',
+    unreadCount: 2,
     emails: [
       {
         id: 'email-2',
-        from: { name: 'John Smith', email: 'john.smith@acmecorp.com' },
-        body: 'Hi team,\n\nI wanted to share the updated project timeline for our new mobile app launch.\n\nKey milestones:\n- Design phase: March 25-30\n- Development phase: April 1-15\n- Testing phase: April 16-20\n- Launch: April 25\n\nPlease let me know if you have any concerns.\n\nJohn',
-        timestamp: '2024-03-20T14:30:00Z',
+        from: { name: 'Mike Rodriguez', email: 'mike.rodriguez@startup.io' },
+        body: `Hey there,\n\nWe have multiple clients requesting OAuth support (Google, GitHub, Microsoft). This would significantly improve our adoption and reduce friction for enterprise customers.\n\nFrom our sales pipeline, I'd estimate we could close 3-4 deals if we had this feature within 6 weeks.\n\nCould you scope this out and provide an estimate? Would also help if we could get this on the roadmap ASAP.\n\nThanks!\nMike`,
+        timestamp: '2024-03-20T16:22:00Z',
       },
     ],
   },
   {
     id: 'thread-3',
-    from: { name: 'Lisa Johnson', email: 'lisa.johnson@acmecorp.com' },
-    subject: 'Conference Attendance Request',
-    preview: 'I would like to attend the Annual Tech Conference next month. The event is scheduled for April 15-17...',
+    from: { name: 'James Thompson', email: 'james.thompson@marketing.io' },
+    subject: 'Campaign Performance Report - March',
+    preview: 'The March campaign report is complete. Overall performance exceeded targets by 23%...',
     timestamp: '2024-03-19T10:00:00Z',
     unreadCount: 0,
     emails: [
       {
         id: 'email-3',
-        from: { name: 'Lisa Johnson', email: 'lisa.johnson@acmecorp.com' },
-        body: 'Hi,\n\nI would like to attend the Annual Tech Conference next month. The event is scheduled for April 15-17 in San Francisco.\n\nEstimated costs:\n- Registration: $800\n- Hotel (3 nights): $1,200\n- Travel: $600\n- Meals: $400\n\nTotal: $3,000\n\nPlease approve this request.\n\nLisa',
+        from: { name: 'James Thompson', email: 'james.thompson@marketing.io' },
+        body: `Hi,\n\nThe March campaign report is complete. Overall performance exceeded targets by 23%.\n\nKey metrics:\n- Reach: 2.3M impressions (+31% vs target)\n- Engagement: 45K interactions (+18% vs target)\n- Conversions: 1,250 leads (+28% vs target)\n- Cost per lead: $8.50 (-15% vs budget)\n\nThe social media strategy pivot in week 2 really paid off. Detailed analysis attached.\n\nJames`,
         timestamp: '2024-03-19T10:00:00Z',
       },
     ],
   },
 ]
 
-const mockAnalysis = {
-  priority: 'urgent' as const,
-  bullets: [
-    'Board meeting deadline is next Tuesday requiring finalized Q2 budget',
-    'Department leads must review and confirm budget numbers by Friday EOD',
-    'Final review meeting scheduled for Monday morning before presentation',
-  ],
+const mockAnalysisMap: Record<string, { priority: 'urgent' | 'action' | 'fyi'; bullets: string[] }> = {
+  'thread-1': {
+    priority: 'urgent',
+    bullets: [
+      'Board meeting deadline is next Tuesday requiring finalized Q2 budget',
+      'Department leads must review and confirm budget numbers by Friday EOD',
+      'Final review meeting scheduled for Monday morning before presentation',
+    ],
+  },
+  'thread-2': {
+    priority: 'action',
+    bullets: [
+      'Multiple clients are requesting OAuth support (Google, GitHub, Microsoft)',
+      'Estimated 3-4 pipeline deals could close if feature ships within 6 weeks',
+      'Scope estimate and roadmap placement needed as soon as possible',
+    ],
+  },
+  'thread-3': {
+    priority: 'fyi',
+    bullets: [
+      'March campaign exceeded all targets — 23% above overall goal',
+      'Strongest metric: reach at +31% vs target with cost per lead down 15%',
+      'Exec summary requested and Q2 social strategy discussion planned',
+    ],
+  },
 }
 
-const mockActions = [
-  {
-    id: 'action-1',
-    type: 'reply' as const,
-    title: 'Draft Reply',
-    description: 'Generate response confirming receipt and commitment to deadline',
-    content: 'Hi Sarah,\n\nThank you for sending over the budget allocations. I\'ve reviewed the numbers and everything looks accurate. I\'ll have my team\'s confirmed allocations to you by Friday EOD as requested.\n\nLooking forward to the board presentation on Tuesday.\n\nBest regards',
-    status: 'pending' as const,
-  },
-  {
-    id: 'action-2',
-    type: 'calendar' as const,
-    title: 'Board Presentation',
-    description: 'Schedule calendar event for budget review meeting',
-    date: '2024-03-26',
-    time: '10:00 AM',
-    attendees: ['sarah.chen@acmecorp.com'],
-    status: 'pending' as const,
-  },
-  {
-    id: 'action-3',
-    type: 'task' as const,
-    title: 'Review Budget Numbers',
-    description: 'Review department allocations and confirm by Friday',
-    dueDate: '2024-03-22',
-    priority: 'high' as const,
-    status: 'pending' as const,
-  },
-]
+const mockActionsMap: Record<
+  string,
+  Array<{
+    id: string
+    type: 'reply' | 'calendar' | 'task'
+    title: string
+    description: string
+    content?: string
+    date?: string
+    time?: string
+    attendees?: string[]
+    dueDate?: string
+    priority?: string
+    status: 'pending'
+  }>
+> = {
+  'thread-1': [
+    {
+      id: 'action-1a',
+      type: 'reply',
+      title: 'Draft Reply',
+      description: 'Confirm receipt and commitment to deadline',
+      content:
+        "Hi Sarah,\n\nThank you for the heads up. I've reviewed the numbers and they look accurate. I'll have my team's confirmed allocations to you by Friday EOD as requested.\n\nLooking forward to the board presentation on Tuesday.\n\nBest regards",
+      status: 'pending',
+    },
+    {
+      id: 'action-1b',
+      type: 'calendar',
+      title: 'Board Presentation',
+      description: 'Schedule calendar event for budget review meeting',
+      date: '2024-03-26',
+      time: '10:00 AM',
+      attendees: ['sarah.chen@acmecorp.com'],
+      status: 'pending',
+    },
+    {
+      id: 'action-1c',
+      type: 'task',
+      title: 'Review Budget Numbers',
+      description: 'Review department allocations and confirm by Friday',
+      dueDate: '2024-03-22',
+      priority: 'high',
+      status: 'pending',
+    },
+  ],
+  'thread-2': [
+    {
+      id: 'action-2a',
+      type: 'reply',
+      title: 'Draft Reply',
+      description: 'Acknowledge request and provide initial scoping timeline',
+      content:
+        "Hi Mike,\n\nThanks for flagging this — OAuth is definitely on our radar. I'll put together a detailed scope and estimate by end of week and we can align in our next sync.\n\nGoogle and GitHub integrations look achievable in 3-4 weeks if we prioritize.\n\nCheers",
+      status: 'pending',
+    },
+    {
+      id: 'action-2b',
+      type: 'task',
+      title: 'Scope OAuth Integration',
+      description: 'Prepare technical estimate for Google, GitHub, and Microsoft OAuth',
+      dueDate: '2024-03-25',
+      priority: 'high',
+      status: 'pending',
+    },
+  ],
+  'thread-3': [
+    {
+      id: 'action-3a',
+      type: 'reply',
+      title: 'Draft Reply',
+      description: 'Acknowledge great results and confirm exec summary request',
+      content:
+        "Hi James,\n\nFantastic results — well done to the whole team! The exec summary sounds great, looking forward to reviewing it.\n\nLet's schedule time next week to dive into the Q2 social strategy.\n\nThanks",
+      status: 'pending',
+    },
+    {
+      id: 'action-3b',
+      type: 'task',
+      title: 'Review Exec Summary',
+      description: 'Review 1-pager from James when ready and share with board',
+      dueDate: '2024-03-25',
+      priority: 'medium',
+      status: 'pending',
+    },
+  ],
+}
 
 const priorityConfig = {
   urgent: { label: 'Urgent', color: 'bg-red-100 text-red-800 border-red-200', dotColor: 'bg-red-500' },
@@ -108,14 +184,18 @@ export default function DemoPage() {
   const [actionStatuses, setActionStatuses] = useState<Record<string, string>>({})
   const [expandedActions, setExpandedActions] = useState<Record<string, boolean>>({})
   const [notification, setNotification] = useState<{ type: string; message: string } | null>(null)
+  const [copiedId, setCopiedId] = useState<string | null>(null)
 
   const selectedThread = mockThreads.find((t) => t.id === selectedThreadId)
+  const selectedAnalysis = selectedThreadId ? mockAnalysisMap[selectedThreadId] : null
+  const selectedActions = selectedThreadId ? (mockActionsMap[selectedThreadId] ?? []) : []
 
   const filteredThreads = useMemo(() => {
     if (!searchQuery) return mockThreads
-    return mockThreads.filter((t) =>
-      t.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.from.name.toLowerCase().includes(searchQuery.toLowerCase())
+    return mockThreads.filter(
+      (t) =>
+        t.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        t.from.name.toLowerCase().includes(searchQuery.toLowerCase())
     )
   }, [searchQuery])
 
@@ -132,6 +212,13 @@ export default function DemoPage() {
   const handleDiscard = (actionId: string) => {
     setActionStatuses((prev) => ({ ...prev, [actionId]: 'discarded' }))
     showNotification('info', 'Action discarded')
+  }
+
+  const handleCopy = (actionId: string, content: string) => {
+    navigator.clipboard.writeText(content).then(() => {
+      setCopiedId(actionId)
+      setTimeout(() => setCopiedId(null), 2000)
+    })
   }
 
   const getStatusColor = (status: string) => {
@@ -152,7 +239,7 @@ export default function DemoPage() {
         <div className="flex items-center gap-3">
           <Mail className="w-6 h-6 text-blue-600" />
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Email Triage - Demo</h1>
+            <h1 className="text-2xl font-bold text-foreground">MailMate - Demo</h1>
             <p className="text-sm text-muted-foreground">Interactive preview (no AI required)</p>
           </div>
         </div>
@@ -176,33 +263,44 @@ export default function DemoPage() {
           </div>
 
           <div className="flex-1 overflow-y-auto divide-y divide-border">
-            {filteredThreads.map((thread) => (
-              <button
-                key={thread.id}
-                onClick={() => setSelectedThreadId(thread.id)}
-                className={`w-full text-left px-4 py-3 hover:bg-muted transition-colors border-l-4 ${
-                  selectedThreadId === thread.id
-                    ? 'bg-background border-l-blue-500 shadow-sm'
-                    : 'border-l-transparent'
-                }`}
-              >
-                <div className="flex items-start justify-between gap-2 mb-1">
-                  <p className={`font-medium text-sm flex-1 ${thread.unreadCount > 0 ? 'font-bold' : ''}`}>
-                    {thread.from.name}
+            {filteredThreads.map((thread) => {
+              const analysis = mockAnalysisMap[thread.id]
+              return (
+                <button
+                  key={thread.id}
+                  onClick={() => setSelectedThreadId(thread.id)}
+                  className={`w-full text-left px-4 py-3 hover:bg-muted transition-colors border-l-4 ${
+                    selectedThreadId === thread.id
+                      ? 'bg-background border-l-blue-500 shadow-sm'
+                      : 'border-l-transparent'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2 mb-1">
+                    <p className={`font-medium text-sm flex-1 ${thread.unreadCount > 0 ? 'font-bold' : ''}`}>
+                      {thread.from.name}
+                    </p>
+                    <div className="flex items-center gap-1">
+                      {analysis && (
+                        <span
+                          className={`w-2 h-2 rounded-full ${priorityConfig[analysis.priority].dotColor}`}
+                          title={priorityConfig[analysis.priority].label}
+                        />
+                      )}
+                      {thread.unreadCount > 0 && (
+                        <span className="bg-blue-600 text-white text-xs rounded-full px-2 py-0.5">
+                          {thread.unreadCount}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <p className="text-sm font-medium text-foreground truncate">{thread.subject}</p>
+                  <p className="text-xs text-muted-foreground line-clamp-2 mt-1">{thread.preview}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {new Date(thread.timestamp).toLocaleDateString()}
                   </p>
-                  {thread.unreadCount > 0 && (
-                    <span className="bg-blue-600 text-white text-xs rounded-full px-2 py-1">
-                      {thread.unreadCount}
-                    </span>
-                  )}
-                </div>
-                <p className="text-sm font-medium text-foreground truncate">{thread.subject}</p>
-                <p className="text-xs text-muted-foreground line-clamp-2 mt-1">{thread.preview}</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {new Date(thread.timestamp).toLocaleDateString()}
-                </p>
-              </button>
-            ))}
+                </button>
+              )
+            })}
           </div>
         </div>
 
@@ -218,26 +316,32 @@ export default function DemoPage() {
                 </p>
 
                 {/* Analysis Summary */}
-                <div className={`p-4 border rounded-lg ${priorityConfig[mockAnalysis.priority as keyof typeof priorityConfig].color}`}>
-                  <div className="flex items-center gap-2 mb-3">
-                    <div
-                      className={`w-3 h-3 rounded-full ${
-                        priorityConfig[mockAnalysis.priority as keyof typeof priorityConfig].dotColor
-                      }`}
-                    />
-                    <span className="font-semibold">
-                      {priorityConfig[mockAnalysis.priority as keyof typeof priorityConfig].label}
-                    </span>
+                {selectedAnalysis && (
+                  <div
+                    className={`p-4 border rounded-lg ${
+                      priorityConfig[selectedAnalysis.priority].color
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-3">
+                      <div
+                        className={`w-3 h-3 rounded-full ${
+                          priorityConfig[selectedAnalysis.priority].dotColor
+                        }`}
+                      />
+                      <span className="font-semibold">
+                        {priorityConfig[selectedAnalysis.priority].label}
+                      </span>
+                    </div>
+                    <ul className="space-y-2">
+                      {selectedAnalysis.bullets.map((bullet, i) => (
+                        <li key={i} className="text-sm flex gap-2">
+                          <span className="font-medium">&bull;</span>
+                          <span>{bullet}</span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                  <ul className="space-y-2">
-                    {mockAnalysis.bullets.map((bullet, i) => (
-                      <li key={i} className="text-sm flex gap-2">
-                        <span className="font-medium">•</span>
-                        <span>{bullet}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                )}
               </div>
 
               {/* Email Thread */}
@@ -264,7 +368,7 @@ export default function DemoPage() {
               <div className="border-t border-border p-6 bg-background">
                 <h2 className="text-lg font-bold text-foreground mb-4">Suggested Actions</h2>
                 <div className="space-y-4">
-                  {mockActions.map((action) => {
+                  {selectedActions.map((action) => {
                     const status = actionStatuses[action.id] || 'pending'
                     const isExpanded = expandedActions[action.id] || false
 
@@ -274,7 +378,9 @@ export default function DemoPage() {
                         className={`border rounded-lg overflow-hidden ${getStatusColor(status)}`}
                       >
                         <button
-                          onClick={() => setExpandedActions((prev) => ({ ...prev, [action.id]: !isExpanded }))}
+                          onClick={() =>
+                            setExpandedActions((prev) => ({ ...prev, [action.id]: !isExpanded }))
+                          }
                           className="w-full px-4 py-3 flex items-center justify-between hover:bg-black/5 transition-colors"
                         >
                           <div className="flex items-center gap-3">
@@ -311,7 +417,8 @@ export default function DemoPage() {
                                   <span className="font-medium">Time:</span> {action.time}
                                 </p>
                                 <p>
-                                  <span className="font-medium">Attendees:</span> {action.attendees?.join(', ')}
+                                  <span className="font-medium">Attendees:</span>{' '}
+                                  {action.attendees?.join(', ')}
                                 </p>
                               </div>
                             )}
@@ -329,7 +436,7 @@ export default function DemoPage() {
                             )}
 
                             {status === 'pending' && (
-                              <div className="flex gap-2">
+                              <div className="flex gap-2 flex-wrap">
                                 <Button
                                   onClick={() => handleApprove(action.id)}
                                   size="sm"
@@ -338,6 +445,16 @@ export default function DemoPage() {
                                   <Check className="w-4 h-4 mr-1" />
                                   Approve
                                 </Button>
+                                {action.type === 'reply' && action.content && (
+                                  <Button
+                                    onClick={() => handleCopy(action.id, action.content!)}
+                                    size="sm"
+                                    variant="outline"
+                                  >
+                                    <Copy className="w-4 h-4 mr-1" />
+                                    {copiedId === action.id ? 'Copied!' : 'Copy'}
+                                  </Button>
+                                )}
                                 <Button
                                   onClick={() => handleDiscard(action.id)}
                                   size="sm"

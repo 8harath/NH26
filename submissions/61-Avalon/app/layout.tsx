@@ -7,8 +7,8 @@ const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: 'Email Triage - Smart Inbox Intelligence',
-  description: 'AI-powered email triage with automated action suggestions',
+  title: 'MailMate - AI Email Assistant',
+  description: 'MailMate: AI-powered email assistant with smart triage, automated action suggestions, and intelligent drafting',
   generator: 'v0.app',
   icons: {
     icon: [
