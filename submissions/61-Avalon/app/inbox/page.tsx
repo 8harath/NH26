@@ -149,6 +149,83 @@ function formatCalendarEventLabel(dateStr: string) {
   })
 }
 
+const monthLookup: Record<string, number> = {
+  jan: 0, january: 0,
+  feb: 1, february: 1,
+  mar: 2, march: 2,
+  apr: 3, april: 3,
+  may: 4,
+  jun: 5, june: 5,
+  jul: 6, july: 6,
+  aug: 7, august: 7,
+  sep: 8, sept: 8, september: 8,
+  oct: 9, october: 9,
+  nov: 10, november: 10,
+  dec: 11, december: 11,
+}
+
+function padNumber(value: number) {
+  return String(value).padStart(2, '0')
+}
+
+function toIsoDate(date: Date) {
+  return `${date.getFullYear()}-${padNumber(date.getMonth() + 1)}-${padNumber(date.getDate())}`
+}
+
+function parseEventDateTime(input: string, fallbackIso: string) {
+  const source = input.trim()
+  if (!source) return null
+
+  const fallbackDate = new Date(fallbackIso)
+  if (Number.isNaN(fallbackDate.getTime())) return null
+
+  let resolvedDate = ''
+  const isoMatch = source.match(/\b(\d{4})-(\d{2})-(\d{2})\b/)
+  if (isoMatch) {
+    resolvedDate = `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`
+  }
+
+  const monthMatch = source.match(/\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s*(\d{4}))?/i)
+  if (!resolvedDate && monthMatch) {
+    const month = monthLookup[monthMatch[1].toLowerCase()]
+    const day = Number(monthMatch[2])
+    const year = monthMatch[3] ? Number(monthMatch[3]) : fallbackDate.getFullYear()
+    resolvedDate = `${year}-${padNumber(month + 1)}-${padNumber(day)}`
+  }
+
+  const relativeMatch = source.match(/\b(today|tomorrow)\b/i)
+  if (!resolvedDate && relativeMatch) {
+    const relativeDate = new Date(fallbackDate)
+    if (relativeMatch[1].toLowerCase() === 'tomorrow') {
+      relativeDate.setDate(relativeDate.getDate() + 1)
+    }
+    resolvedDate = toIsoDate(relativeDate)
+  }
+
+  if (!resolvedDate) return null
+
+  let resolvedTime = ''
+  const meridiemMatch = source.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i)
+  if (meridiemMatch) {
+    let hours = Number(meridiemMatch[1])
+    const minutes = meridiemMatch[2] ? Number(meridiemMatch[2]) : 0
+    const meridiem = meridiemMatch[3].toLowerCase()
+    if (meridiem === 'pm' && hours < 12) hours += 12
+    if (meridiem === 'am' && hours === 12) hours = 0
+    resolvedTime = `${padNumber(hours)}:${padNumber(minutes)}`
+  } else {
+    const twentyFourHourMatch = source.match(/\b([01]?\d|2[0-3]):([0-5]\d)\b/)
+    if (twentyFourHourMatch) {
+      resolvedTime = `${padNumber(Number(twentyFourHourMatch[1]))}:${twentyFourHourMatch[2]}`
+    }
+  }
+
+  return {
+    date: resolvedDate,
+    time: resolvedTime,
+  }
+}
+
 // ─── Config maps ────────────────────────────────────────────────
 
 const priorityConfig: Record<string, { label: string; cls: string; dot: string }> = {
@@ -246,6 +323,61 @@ function deriveThreadTags(thread: Thread, analysis: ComprehensiveAnalysis | null
   if (meta.userLabels.length) tags.push(...meta.userLabels.slice(0, 2))
 
   return Array.from(new Set(tags)).slice(0, 6)
+}
+
+function inferCalendarCandidates(thread: Thread, analysis: ComprehensiveAnalysis) {
+  const normalizedMeetings = analysis.meetings
+    .filter(meeting => meeting.date)
+    .map(meeting => ({
+      title: meeting.title || thread.subject,
+      date: meeting.date,
+      time: meeting.time || '',
+      attendees: meeting.attendees,
+    }))
+
+  if (normalizedMeetings.length > 0) {
+    return normalizedMeetings
+  }
+
+  const schedulingPattern = /\b(meeting|meet|call|sync|review|demo|interview|calendar|invite|appointment)\b/i
+  const participants = Array.from(
+    new Set(
+      thread.emails.flatMap(email => [
+        email.from.email,
+        ...email.to.map(recipient => recipient.email),
+      ]).filter(Boolean)
+    )
+  ).slice(0, 6)
+
+  const candidateSnippets = [
+    ...analysis.keyInfo.dates,
+    ...thread.emails.flatMap(email => email.body.split(/\n|(?<=[.!?])/)),
+  ]
+
+  const inferredMeetings: ComprehensiveAnalysis['meetings'] = []
+  for (const snippet of candidateSnippets) {
+    const trimmed = snippet.trim()
+    if (!trimmed) continue
+
+    const parsed = parseEventDateTime(trimmed, thread.timestamp)
+    if (!parsed) continue
+    if (!schedulingPattern.test(trimmed) && !parsed.time) continue
+
+    inferredMeetings.push({
+      title: thread.subject.replace(/^re:\s*/i, '') || 'Meeting',
+      date: parsed.date,
+      time: parsed.time,
+      attendees: participants,
+    })
+  }
+
+  return inferredMeetings.filter((meeting, index, list) => (
+    list.findIndex(candidate => (
+      candidate.date === meeting.date &&
+      candidate.time === meeting.time &&
+      candidate.title === meeting.title
+    )) === index
+  )).slice(0, 3)
 }
 
 function getPositiveReply(thread: Thread, analysis: ComprehensiveAnalysis) {
@@ -703,15 +835,15 @@ function SummarySection({ thread, analysis, meta }: { thread: Thread; analysis: 
           </CardDescription>
         </div>
       </CardHeader>
-      <CardContent className="space-y-3 p-5">
-        {analysis.summary.map((s, i) => (
-          <div key={i} className="flex items-start gap-3 rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
-            <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-semibold text-white">
-              {i + 1}
-            </div>
-            <p className="text-sm leading-relaxed text-gray-700">{s}</p>
-          </div>
-        ))}
+      <CardContent className="p-5">
+        <ul className="space-y-3">
+          {analysis.summary.map((s, i) => (
+            <li key={i} className="flex items-start gap-3 rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
+              <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-blue-600" />
+              <p className="text-sm leading-relaxed text-gray-700">{s}</p>
+            </li>
+          ))}
+        </ul>
       </CardContent>
     </Card>
   )
@@ -776,9 +908,20 @@ function DraftReplySection({ draft }: { draft: string }) {
   )
 }
 
-function MeetingsSection({ meetings, isAuthenticated }: { meetings: ComprehensiveAnalysis['meetings']; isAuthenticated?: boolean }) {
+function MeetingsSection({
+  meetings,
+  isAuthenticated,
+  onCalendarAdded,
+  onOpenCalendar,
+}: {
+  meetings: ComprehensiveAnalysis['meetings']
+  isAuthenticated?: boolean
+  onCalendarAdded?: () => void
+  onOpenCalendar?: () => void
+}) {
   const [addingIdx, setAddingIdx] = useState<number | null>(null)
   const [addedIdx, setAddedIdx] = useState<Set<number>>(new Set())
+  const [eventLinks, setEventLinks] = useState<Record<number, string>>({})
 
   const addToCalendar = async (meeting: ComprehensiveAnalysis['meetings'][0], idx: number) => {
     setAddingIdx(idx)
@@ -795,7 +938,12 @@ function MeetingsSection({ meetings, isAuthenticated }: { meetings: Comprehensiv
         })
       })
       if (res.ok) {
+        const data = await res.json()
         setAddedIdx(prev => new Set(prev).add(idx))
+        if (data.event?.htmlLink) {
+          setEventLinks(prev => ({ ...prev, [idx]: data.event.htmlLink as string }))
+        }
+        onCalendarAdded?.()
       }
     } catch { /* ignore */ }
     finally { setAddingIdx(null) }
@@ -835,21 +983,40 @@ function MeetingsSection({ meetings, isAuthenticated }: { meetings: Comprehensiv
                 )}
               </div>
               {isAuthenticated && (
-                <Button
-                  onClick={() => addToCalendar(m, i)}
-                  disabled={addingIdx === i || addedIdx.has(i)}
-                  variant="outline"
-                  size="sm"
-                  className={`shrink-0 rounded-xl ${
-                    addedIdx.has(i)
-                      ? 'border-green-200 bg-green-50 text-green-700'
-                      : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
-                  }`}
-                >
-                  {addingIdx === i ? <Loader2 className="w-3 h-3 animate-spin" /> :
-                   addedIdx.has(i) ? <><Check className="w-3 h-3" /> Added</> :
-                   <><CalendarPlus className="w-3 h-3" /> Add to calendar</>}
-                </Button>
+                <div className="flex shrink-0 items-center gap-2">
+                  <Button
+                    onClick={() => addToCalendar(m, i)}
+                    disabled={addingIdx === i || addedIdx.has(i)}
+                    variant="outline"
+                    size="sm"
+                    className={`rounded-xl ${
+                      addedIdx.has(i)
+                        ? 'border-green-200 bg-green-50 text-green-700'
+                        : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
+                    }`}
+                  >
+                    {addingIdx === i ? <Loader2 className="w-3 h-3 animate-spin" /> :
+                     addedIdx.has(i) ? <><Check className="w-3 h-3" /> Added</> :
+                     <><CalendarPlus className="w-3 h-3" /> Add to calendar</>}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={onOpenCalendar}
+                    className="rounded-xl text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                  >
+                    <CalendarDays className="w-3 h-3" />
+                    Calendar
+                  </Button>
+                  {eventLinks[i] && (
+                    <Button asChild variant="ghost" size="sm" className="rounded-xl text-slate-600 hover:bg-slate-100 hover:text-slate-900">
+                      <a href={eventLinks[i]} target="_blank" rel="noreferrer">
+                        <ExternalLink className="w-3 h-3" />
+                        Open event
+                      </a>
+                    </Button>
+                  )}
+                </div>
               )}
             </div>
           </div>
@@ -962,7 +1129,9 @@ function ComposePanel({ thread, initialText, meta, onUpdateDraft, onClose, isAut
   const [sending, setSending] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  useEffect(() => { onUpdateDraft(text) }, [text, onUpdateDraft])
+  useEffect(() => {
+    if (text !== meta.draft) onUpdateDraft(text)
+  }, [meta.draft, onUpdateDraft, text])
   useEffect(() => {
     if (initialText && initialText !== text) setText(initialText)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1425,7 +1594,21 @@ export default function InboxPage() {
   // Persist meta changes
   const updateMeta = useCallback((threadId: string, updates: Partial<ThreadMeta>) => {
     setMetas(prev => {
-      const updated = { ...prev, [threadId]: { ...(prev[threadId] ?? defaultMeta), ...updates } }
+      const current = prev[threadId] ?? defaultMeta
+      const nextMeta = { ...current, ...updates }
+      const changed = Object.keys(updates).some(key => {
+        const field = key as keyof ThreadMeta
+        const currentValue = current[field]
+        const nextValue = nextMeta[field]
+        if (Array.isArray(currentValue) && Array.isArray(nextValue)) {
+          return currentValue.length !== nextValue.length || currentValue.some((value, index) => value !== nextValue[index])
+        }
+        return currentValue !== nextValue
+      })
+
+      if (!changed) return prev
+
+      const updated = { ...prev, [threadId]: nextMeta }
       saveJson(LS_META, updated)
       return updated
     })
@@ -1646,6 +1829,11 @@ export default function InboxPage() {
     }
   }, [])
 
+  const handleDraftUpdate = useCallback((text: string) => {
+    if (!selectedId) return
+    updateMeta(selectedId, { draft: text })
+  }, [selectedId, updateMeta])
+
   // Filter threads by folder + search + filters
   const filteredThreads = threads.filter(t => {
     if (folder === 'calendar') return false
@@ -1723,6 +1911,9 @@ export default function InboxPage() {
   const selectedThread = filteredThreads.find(t => t.id === selectedId) ?? null
   const selectedAnalysis = selectedThread ? analyses[selectedThread.id] : null
   const isLoadingSelected = selectedThread ? loadingThreads.has(selectedThread.id) : false
+  const calendarMeetings = selectedThread && selectedAnalysis
+    ? inferCalendarCandidates(selectedThread, selectedAnalysis)
+    : []
 
   useEffect(() => {
     if (isCalendarView) {
@@ -1795,15 +1986,9 @@ export default function InboxPage() {
           </Button>
 
           {isAuthenticated && (
-            <>
-              <Badge variant="outline" className="rounded-full border-emerald-200 bg-emerald-50 px-3 py-1.5 text-emerald-700">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Gmail Connected
-              </Badge>
-              <Badge variant="outline" className="rounded-full border-blue-200 bg-blue-50 px-3 py-1.5 text-blue-700">
-                {calendarLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <CalendarDays className="w-3 h-3" />}
-                {calendarEvents[0] ? `Calendar synced · ${formatCalendarEventLabel(calendarEvents[0].start)}` : 'Calendar synced'}
-              </Badge>
-            </>
+            <Badge variant="outline" className="rounded-full border-emerald-200 bg-emerald-50 px-3 py-1.5 text-emerald-700">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Gmail Connected
+            </Badge>
           )}
 
           <Button variant="outline" size="sm" onClick={() => setShowChat(!showChat)}
@@ -2361,7 +2546,12 @@ export default function InboxPage() {
                         <SmartRepliesSection thread={selectedThread} analysis={selectedAnalysis} onUseReply={handleUseReply} />
                         <DraftReplySection draft={selectedAnalysis.draftReply} />
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                          <MeetingsSection meetings={selectedAnalysis.meetings} isAuthenticated={isAuthenticated} />
+                          <MeetingsSection
+                            meetings={calendarMeetings}
+                            isAuthenticated={isAuthenticated}
+                            onCalendarAdded={fetchCalendarEvents}
+                            onOpenCalendar={() => handleFolderChange('calendar')}
+                          />
                           <TasksSection tasks={selectedAnalysis.tasks} />
                         </div>
                         <DeadlinesSection deadlines={selectedAnalysis.deadlines} />
@@ -2397,7 +2587,7 @@ export default function InboxPage() {
                   thread={selectedThread}
                   initialText={composeInitial}
                   meta={getMeta(selectedThread.id)}
-                  onUpdateDraft={(text) => updateMeta(selectedThread.id, { draft: text })}
+                  onUpdateDraft={handleDraftUpdate}
                   onClose={() => setShowCompose(false)}
                   isAuthenticated={isAuthenticated}
                   senderName={currentSenderName}
