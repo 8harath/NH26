@@ -89,9 +89,13 @@ export default function Home() {
             You stay in control. AI does the heavy lifting.
           </p>
           <div className="mt-10 flex items-center justify-center gap-4">
-            <Link href="/inbox"
+            <Link href="/auth/signin"
               className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-3 rounded-xl text-sm transition-colors shadow-sm">
-              Open Inbox <ArrowRight className="w-4 h-4" />
+              Connect Gmail <ArrowRight className="w-4 h-4" />
+            </Link>
+            <Link href="/inbox"
+              className="inline-flex items-center gap-2 bg-white hover:bg-gray-50 text-gray-700 font-medium px-6 py-3 rounded-xl text-sm transition-colors border border-gray-200 shadow-sm">
+              Try Demo
             </Link>
           </div>
         </div>

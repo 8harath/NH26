@@ -1,13 +1,14 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useSession, signIn, signOut } from 'next-auth/react'
 import {
   Mail, Search, Loader2, X, Inbox, Bot, Send, Sparkles,
   Calendar, ListChecks, Clock, AlertTriangle, Tag, Star,
   Copy, Check, MessageSquare, FileText, Link2, Users, DollarSign,
-  Archive, Trash2, AlarmClock, PenLine, StarOff,
+  Archive, Trash2, AlarmClock, PenLine,
   Wand2, Minimize2, Maximize2, CheckCheck, CornerUpLeft,
-  ChevronRight
+  LogIn, LogOut, CalendarPlus, ExternalLink
 } from 'lucide-react'
 import NextLink from 'next/link'
 import { Input } from '@/components/ui/input'
@@ -230,7 +231,31 @@ function DraftReplySection({ draft }: { draft: string }) {
   )
 }
 
-function MeetingsSection({ meetings }: { meetings: ComprehensiveAnalysis['meetings'] }) {
+function MeetingsSection({ meetings, isAuthenticated }: { meetings: ComprehensiveAnalysis['meetings']; isAuthenticated?: boolean }) {
+  const [addingIdx, setAddingIdx] = useState<number | null>(null)
+  const [addedIdx, setAddedIdx] = useState<Set<number>>(new Set())
+
+  const addToCalendar = async (meeting: ComprehensiveAnalysis['meetings'][0], idx: number) => {
+    setAddingIdx(idx)
+    try {
+      const res = await fetch('/api/calendar/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: meeting.title,
+          date: meeting.date,
+          time: meeting.time || undefined,
+          attendees: meeting.attendees,
+          description: `Meeting detected by MailMate AI`,
+        })
+      })
+      if (res.ok) {
+        setAddedIdx(prev => new Set(prev).add(idx))
+      }
+    } catch { /* ignore */ }
+    finally { setAddingIdx(null) }
+  }
+
   if (meetings.length === 0) return null
   return (
     <div>
@@ -240,12 +265,31 @@ function MeetingsSection({ meetings }: { meetings: ComprehensiveAnalysis['meetin
       <div className="space-y-2">
         {meetings.map((m, i) => (
           <div key={i} className="bg-white border border-gray-200 rounded-lg p-3">
-            <p className="text-sm font-medium text-gray-900">{m.title}</p>
-            <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
-              <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{m.date}</span>
-              {m.time && <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{m.time}</span>}
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-900">{m.title}</p>
+                <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                  <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{m.date}</span>
+                  {m.time && <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{m.time}</span>}
+                </div>
+                {m.attendees.length > 0 && <p className="text-xs text-gray-400 mt-1"><Users className="w-3 h-3 inline mr-1" />{m.attendees.join(', ')}</p>}
+              </div>
+              {isAuthenticated && (
+                <button
+                  onClick={() => addToCalendar(m, i)}
+                  disabled={addingIdx === i || addedIdx.has(i)}
+                  className={`shrink-0 inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-1.5 rounded-lg transition-all ${
+                    addedIdx.has(i)
+                      ? 'bg-green-50 text-green-700 border border-green-200'
+                      : 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100'
+                  } disabled:opacity-50`}
+                >
+                  {addingIdx === i ? <Loader2 className="w-3 h-3 animate-spin" /> :
+                   addedIdx.has(i) ? <><Check className="w-3 h-3" /> Added</> :
+                   <><CalendarPlus className="w-3 h-3" /> Add to Calendar</>}
+                </button>
+              )}
             </div>
-            {m.attendees.length > 0 && <p className="text-xs text-gray-400 mt-1"><Users className="w-3 h-3 inline mr-1" />{m.attendees.join(', ')}</p>}
           </div>
         ))}
       </div>
@@ -337,13 +381,14 @@ function FollowUpSection({ needed, suggestion }: { needed: boolean; suggestion: 
 
 // ─── Compose panel with AI writing tools ────────────────────────
 
-function ComposePanel({ thread, initialText, meta, onUpdateDraft, onClose }: {
+function ComposePanel({ thread, initialText, meta, onUpdateDraft, onClose, isAuthenticated }: {
   thread: Thread; initialText: string; meta: ThreadMeta
-  onUpdateDraft: (text: string) => void; onClose: () => void
+  onUpdateDraft: (text: string) => void; onClose: () => void; isAuthenticated?: boolean
 }) {
   const [text, setText] = useState(initialText || meta.draft || '')
   const [rewriting, setRewriting] = useState<RewriteAction | null>(null)
   const [sent, setSent] = useState(false)
+  const [sending, setSending] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => { onUpdateDraft(text) }, [text, onUpdateDraft])
@@ -367,8 +412,30 @@ function ComposePanel({ thread, initialText, meta, onUpdateDraft, onClose }: {
     finally { setRewriting(null) }
   }, [text, rewriting])
 
-  const handleSend = () => {
+  const handleSend = async () => {
+    if (sending) return
+    setSending(true)
+
+    if (isAuthenticated) {
+      // Send via Gmail API
+      try {
+        const lastEmail = thread.emails[thread.emails.length - 1]
+        const to = lastEmail.from.email.includes('you@') ? thread.from.email : lastEmail.from.email
+        await fetch('/api/gmail/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to,
+            subject: `Re: ${thread.subject}`,
+            body: text,
+            threadId: thread.id,
+          })
+        })
+      } catch (err) { console.error('Send failed:', err) }
+    }
+
     setSent(true)
+    setSending(false)
     onUpdateDraft('')
     setTimeout(() => { setSent(false); onClose() }, 1500)
   }
@@ -414,9 +481,11 @@ function ComposePanel({ thread, initialText, meta, onUpdateDraft, onClose }: {
 
         <div className="flex items-center justify-between mt-3">
           <p className="text-[11px] text-gray-400">{text.length > 0 ? `${text.split(/\s+/).filter(Boolean).length} words` : ''}</p>
-          <Button size="sm" onClick={handleSend} disabled={!text.trim() || sent}
+          <Button size="sm" onClick={handleSend} disabled={!text.trim() || sent || sending}
             className={sent ? 'bg-green-600 hover:bg-green-600' : ''}>
-            {sent ? <><Check className="w-3.5 h-3.5 mr-1" /> Sent</> : <><Send className="w-3.5 h-3.5 mr-1" /> Send</>}
+            {sending ? <><Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> Sending...</> :
+             sent ? <><Check className="w-3.5 h-3.5 mr-1" /> Sent{isAuthenticated ? ' via Gmail' : ''}</> :
+             <><Send className="w-3.5 h-3.5 mr-1" /> {isAuthenticated ? 'Send via Gmail' : 'Send'}</>}
           </Button>
         </div>
       </div>
@@ -479,7 +548,12 @@ function AIChatPanel({ thread }: { thread: Thread | null }) {
 // ─── Main inbox page ────────────────────────────────────────────
 
 export default function InboxPage() {
-  const [threads] = useState<Thread[]>(mockThreads)
+  const { data: session, status: authStatus } = useSession()
+  const isAuthenticated = !!session?.accessToken
+  const isAuthLoading = authStatus === 'loading'
+
+  const [threads, setThreads] = useState<Thread[]>(mockThreads)
+  const [gmailLoading, setGmailLoading] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [analyses, setAnalyses] = useState<Record<string, ComprehensiveAnalysis>>({})
   const [metas, setMetas] = useState<Record<string, ThreadMeta>>({})
@@ -497,11 +571,28 @@ export default function InboxPage() {
   const selectedThread = threads.find(t => t.id === selectedId) ?? null
   const getMeta = (id: string): ThreadMeta => metas[id] ?? defaultMeta
 
-  // Load from storage, merge initial demo metas
+  // Fetch real Gmail threads when authenticated
+  const fetchGmailThreads = useCallback(async (query?: string) => {
+    if (!isAuthenticated) return
+    setGmailLoading(true)
+    try {
+      const url = new URL('/api/gmail/threads', window.location.origin)
+      if (query) url.searchParams.set('q', query)
+      const res = await fetch(url.toString())
+      if (res.ok) {
+        const data = await res.json()
+        if (data.threads?.length > 0) {
+          setThreads(data.threads as Thread[])
+        }
+      }
+    } catch (err) { console.error('Gmail fetch error:', err) }
+    finally { setGmailLoading(false) }
+  }, [isAuthenticated])
+
+  // Load from storage / Gmail on mount
   useEffect(() => {
     setAnalyses(loadAnalyses())
     const stored = loadJson<Record<string, ThreadMeta>>(LS_META, {})
-    // Merge initial demo metas only if not already stored
     const merged = { ...stored }
     for (const [id, partial] of Object.entries(initialMetas)) {
       if (!merged[id]) merged[id] = { ...defaultMeta, ...partial }
@@ -510,6 +601,13 @@ export default function InboxPage() {
     saveJson(LS_META, merged)
     setAllUserLabels(loadJson<string[]>(LS_LABELS, ['Important', 'Follow-up', 'Receipts', 'Travel', 'Project']))
   }, [])
+
+  // Fetch Gmail when session is ready
+  useEffect(() => {
+    if (isAuthenticated && !isAuthLoading) {
+      fetchGmailThreads()
+    }
+  }, [isAuthenticated, isAuthLoading, fetchGmailThreads])
 
   // Persist meta changes
   const updateMeta = useCallback((threadId: string, updates: Partial<ThreadMeta>) => {
@@ -533,28 +631,40 @@ export default function InboxPage() {
     finally { setLoadingThreads(prev => { const n = new Set(prev); n.delete(threadId); return n }) }
   }, [analyses, loadingThreads])
 
+  // Gmail API action helper
+  const gmailAction = useCallback(async (threadId: string, action: string) => {
+    if (!isAuthenticated) return
+    try {
+      await fetch('/api/gmail/modify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ threadId, action })
+      })
+    } catch { /* local state is source of truth for UI */ }
+  }, [isAuthenticated])
+
   const handleSelect = useCallback((threadId: string) => {
     setSelectedId(threadId)
     setActiveTab('analysis')
     setShowCompose(false)
     setComposeInitial('')
-    // Mark as read
     updateMeta(threadId, { read: true })
+    gmailAction(threadId, 'read')
     analyzeThread(threadId)
-  }, [analyzeThread, updateMeta])
+  }, [analyzeThread, updateMeta, gmailAction])
 
   const handleStar = useCallback((threadId: string) => {
     const current = getMeta(threadId)
     updateMeta(threadId, { starred: !current.starred })
+    gmailAction(threadId, current.starred ? 'unstar' : 'star')
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [metas, updateMeta])
+  }, [metas, updateMeta, gmailAction])
 
   const handleSnooze = useCallback((threadId: string) => {
     const current = getMeta(threadId)
     if (current.snoozedUntil) {
       updateMeta(threadId, { snoozedUntil: null })
     } else {
-      // Snooze for 24 hours
       const tomorrow = new Date(Date.now() + 86400000).toISOString()
       updateMeta(threadId, { snoozedUntil: tomorrow })
     }
@@ -563,17 +673,20 @@ export default function InboxPage() {
 
   const handleArchive = useCallback((threadId: string) => {
     updateMeta(threadId, { archived: true })
+    gmailAction(threadId, 'archive')
     if (selectedId === threadId) setSelectedId(null)
-  }, [updateMeta, selectedId])
+  }, [updateMeta, selectedId, gmailAction])
 
   const handleTrash = useCallback((threadId: string) => {
     updateMeta(threadId, { trashed: true })
+    gmailAction(threadId, 'trash')
     if (selectedId === threadId) setSelectedId(null)
-  }, [updateMeta, selectedId])
+  }, [updateMeta, selectedId, gmailAction])
 
   const handleMarkUnread = useCallback((threadId: string) => {
     updateMeta(threadId, { read: false })
-  }, [updateMeta])
+    gmailAction(threadId, 'unread')
+  }, [updateMeta, gmailAction])
 
   const handleUseReply = useCallback((text: string) => {
     setComposeInitial(text)
@@ -662,10 +775,29 @@ export default function InboxPage() {
         </div>
 
         <div className="flex items-center gap-2 ml-auto">
+          {gmailLoading && <Loader2 className="w-4 h-4 animate-spin text-blue-500" />}
+
+          {isAuthenticated && (
+            <span className="text-[11px] text-green-600 font-medium bg-green-50 px-2 py-1 rounded-full flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500" /> Gmail Connected
+            </span>
+          )}
+
           <Button variant="outline" size="sm" onClick={() => setShowChat(!showChat)}
             className={showChat ? 'bg-blue-50 border-blue-200 text-blue-700' : ''}>
             <Bot className="w-4 h-4 mr-1" /> AI Chat
           </Button>
+
+          {isAuthenticated ? (
+            <Button variant="outline" size="sm" onClick={() => signOut()}>
+              <LogOut className="w-4 h-4 mr-1" /> {session?.user?.name?.split(' ')[0] ?? 'Sign out'}
+            </Button>
+          ) : (
+            <Button variant="outline" size="sm" onClick={() => signIn('google', { callbackUrl: '/inbox' })}
+              className="border-blue-200 text-blue-700 hover:bg-blue-50">
+              <LogIn className="w-4 h-4 mr-1" /> Connect Gmail
+            </Button>
+          )}
         </div>
       </header>
 
@@ -850,7 +982,7 @@ export default function InboxPage() {
                         <SmartRepliesSection replies={selectedAnalysis.smartReplies} onUseReply={handleUseReply} />
                         <DraftReplySection draft={selectedAnalysis.draftReply} />
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                          <MeetingsSection meetings={selectedAnalysis.meetings} />
+                          <MeetingsSection meetings={selectedAnalysis.meetings} isAuthenticated={isAuthenticated} />
                           <TasksSection tasks={selectedAnalysis.tasks} />
                         </div>
                         <DeadlinesSection deadlines={selectedAnalysis.deadlines} />
@@ -916,6 +1048,7 @@ export default function InboxPage() {
                   meta={getMeta(selectedThread.id)}
                   onUpdateDraft={(text) => updateMeta(selectedThread.id, { draft: text })}
                   onClose={() => setShowCompose(false)}
+                  isAuthenticated={isAuthenticated}
                 />
               )}
             </div>
