@@ -1,6 +1,7 @@
 'use client'
 
 import { signIn } from 'next-auth/react'
+import Image from 'next/image'
 import {
   ArrowRight, Calendar, CheckCircle2, Mail, Shield, Sparkles
 } from 'lucide-react'
@@ -36,7 +37,7 @@ export default function SignInPage() {
                 <Sparkles className="h-4 w-4" />
                 Production-ready AI inbox assistant
               </div>
-              <h1 className="mt-8 text-5xl font-bold leading-tight text-white">
+              <h1 className="mt-8 text-5xl font-display leading-tight text-white">
                 Connect once.
                 <span className="block bg-gradient-to-r from-cyan-300 to-blue-300 bg-clip-text text-transparent">
                   Let the inbox work back.
@@ -79,7 +80,7 @@ export default function SignInPage() {
           <div className="rounded-[2rem] border border-gray-200/80 bg-white/92 p-8 shadow-2xl shadow-cyan-100/60 backdrop-blur sm:p-10">
             <div className="text-center">
               <p className="text-sm font-semibold uppercase tracking-[0.24em] text-cyan-700">Connect your workspace</p>
-              <h2 className="mt-3 text-3xl font-bold text-gray-950">Sign in to MailMate</h2>
+              <h2 className="mt-3 text-3xl font-display text-gray-950">Sign in to <span className="tracking-tight">Mail<span className="text-blue-600">Mate</span></span></h2>
               <p className="mt-3 text-base leading-relaxed text-gray-500">
                 Use Google to unlock live inbox analysis, calendar sync, and sending approved replies from one place.
               </p>

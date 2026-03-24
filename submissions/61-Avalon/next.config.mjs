@@ -3,6 +3,10 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  experimental: {
+    webpackBuildWorker: false,
+    workerThreads: false,
+  },
   images: {
     unoptimized: true,
   },

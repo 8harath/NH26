@@ -103,41 +103,39 @@ export function HeroSection() {
         </div>
         
         {/* Description */}
-        <div className="grid lg:grid-cols-2 gap-12 lg:gap-24 items-end">
-          <p 
-            className={`text-xl lg:text-2xl text-muted-foreground leading-relaxed max-w-xl transition-all duration-700 delay-200 ${
-              isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
-            }`}
+        <p
+          className={`text-xl lg:text-2xl text-muted-foreground leading-relaxed max-w-xl transition-all duration-700 delay-200 ${
+            isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
+          }`}
+        >
+          MailMate analyzes email threads, assigns priority, drafts replies,
+          and prepares task or calendar actions so teams can review decisions instead of manually triaging every message.
+        </p>
+
+        {/* CTAs */}
+        <div
+          className={`mt-10 flex flex-col sm:flex-row items-start gap-4 transition-all duration-700 delay-300 ${
+            isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
+          }`}
+        >
+          <Button
+            asChild
+            size="lg"
+            className="bg-foreground hover:bg-foreground/90 text-background px-8 h-14 text-base rounded-full group shadow-lg"
           >
-            MailMate analyzes email threads, assigns priority, drafts replies,
-            and prepares task or calendar actions so teams can review decisions instead of manually triaging every message.
-          </p>
-          
-          {/* CTAs */}
-          <div 
-            className={`flex flex-col sm:flex-row items-start gap-4 transition-all duration-700 delay-300 ${
-              isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
-            }`}
+            <Link href="/auth/signin">
+              Connect Google
+              <ArrowRight className="w-4 h-4 ml-2 transition-transform group-hover:translate-x-1" />
+            </Link>
+          </Button>
+          <Button
+            asChild
+            size="lg"
+            variant="outline"
+            className="h-14 px-8 text-base rounded-full border-foreground/20 hover:bg-foreground/5 shadow-lg"
           >
-            <Button 
-              asChild
-              size="lg" 
-              className="bg-foreground hover:bg-foreground/90 text-background px-8 h-14 text-base rounded-full group"
-            >
-              <Link href="/auth/signin">
-                Connect Google
-                <ArrowRight className="w-4 h-4 ml-2 transition-transform group-hover:translate-x-1" />
-              </Link>
-            </Button>
-            <Button 
-              asChild
-              size="lg" 
-              variant="outline" 
-              className="h-14 px-8 text-base rounded-full border-foreground/20 hover:bg-foreground/5"
-            >
-              <Link href="/inbox">Open demo inbox</Link>
-            </Button>
-          </div>
+            <Link href="/inbox">Open demo inbox</Link>
+          </Button>
         </div>
         
       </div>

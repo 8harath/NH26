@@ -63,7 +63,7 @@ export function HowItWorksSection() {
     <section
       id="how-it-works"
       ref={sectionRef}
-      className="relative py-14 lg:py-20 bg-foreground text-background overflow-hidden"
+      className="relative py-10 lg:py-14 bg-foreground text-background overflow-hidden"
     >
       {/* Diagonal lines pattern */}
       <div className="absolute inset-0 opacity-[0.03] pointer-events-none">
