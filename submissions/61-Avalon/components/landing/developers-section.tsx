@@ -37,8 +37,8 @@ const result = await analysis.json()`,
 
 const features = [
   { 
-    title: "Next.js 16", 
-    description: "App Router structure with API routes for analysis and workflow actions."
+    title: "Next.js 15",
+    description: "App Router with server-side API routes for secure AI processing and Gmail access."
   },
   { 
     title: "Groq-powered", 
@@ -49,8 +49,8 @@ const features = [
     description: "React 19 and TypeScript keep inbox state, actions, and thread data consistent."
   },
   { 
-    title: "Hackathon ready", 
-    description: "The repo includes docs, acceptance criteria, demo data, and deployment notes."
+    title: "Deploy anywhere",
+    description: "One-click Vercel deployment or self-host with Docker. Environment variables are all you need."
   },
 ];
 
@@ -122,12 +122,12 @@ export function DevelopersSection() {
               Implementation stack
             </span>
             <h2 className="text-4xl lg:text-6xl font-display tracking-tight mb-8">
-              Built to show
+              Built for
               <br />
-              <span className="text-muted-foreground">the actual product.</span>
+              <span className="text-muted-foreground">developers.</span>
             </h2>
             <p className="text-xl text-muted-foreground mb-12 leading-relaxed">
-              This section reflects the actual MailMate implementation stack instead of a generic SDK or unrelated platform workflow.
+              Clean API routes, typed responses, and a modern stack you can extend, fork, or deploy to your own infrastructure.
             </p>
             
             {/* Features */}

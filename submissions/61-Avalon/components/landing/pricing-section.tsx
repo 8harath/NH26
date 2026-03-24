@@ -4,50 +4,49 @@ import { ArrowRight, Check } from "lucide-react";
 
 const plans = [
   {
-    name: "Demo",
-    description: "Best for hackathon review and first walkthroughs",
+    name: "Free",
+    description: "Try the full AI experience with sample data",
     price: { monthly: 0, annual: 0 },
     features: [
-      "Mock inbox with 6 threads",
-      "3-bullet AI summaries",
-      "Priority classification",
-      "Reply, task, and event generation",
-      "No live mailbox required",
+      "Pre-loaded inbox with realistic threads",
+      "AI thread summaries and priority tagging",
+      "Smart reply drafts and writing tools",
+      "Task extraction and deadline detection",
+      "Meeting detection with calendar preview",
     ],
-    cta: "Explore demo flow",
+    cta: "Try free demo",
     popular: false,
   },
   {
-    name: "Workspace",
-    description: "For connected Gmail and Calendar workflows",
-    price: { monthly: null, annual: null },
+    name: "Pro",
+    description: "Connect your Gmail and work at full speed",
+    price: { monthly: 12, annual: 9 },
     features: [
-      "Google sign-in flow",
-      "Gmail and Calendar scopes",
-      "Live inbox review experience",
-      "Editable AI actions",
-      "Approve, discard, regenerate",
-      "Thread-based operator workflow",
-      "Ready for further extension",
+      "Live Gmail inbox with real-time sync",
+      "Google Calendar integration",
+      "Unlimited AI analyses per day",
+      "One-click replies sent through Gmail",
+      "AI chat assistant with full thread context",
+      "Custom labels and inbox organization",
+      "Priority support",
     ],
-    cta: "Connect workflow",
+    cta: "Get started",
     popular: true,
   },
   {
-    name: "Extension",
-    description: "For teams building beyond the MVP",
-    price: { monthly: null, annual: null },
+    name: "Team",
+    description: "For organizations managing high-volume email",
+    price: { monthly: 29, annual: 22 },
     features: [
-      "Database persistence roadmap",
-      "Provider integrations beyond Gmail",
-      "Advanced analytics opportunities",
-      "Multi-user collaboration",
-      "Production deployment path",
-      "API and workflow expansion",
-      "Supabase schema groundwork",
-      "Vercel deployment docs included",
+      "Everything in Pro",
+      "Shared team inboxes and delegation",
+      "Batch analysis across entire inbox",
+      "Advanced analytics and response metrics",
+      "Multi-provider support (Outlook, IMAP)",
+      "SSO and admin controls",
+      "Dedicated account manager",
     ],
-    cta: "Plan next build",
+    cta: "Contact sales",
     popular: false,
   },
 ];
@@ -59,15 +58,15 @@ export function PricingSection() {
         {/* Header */}
         <div className="max-w-3xl mb-12">
           <span className="font-mono text-xs tracking-widest text-muted-foreground uppercase block mb-6">
-            Access modes
+            Pricing
           </span>
           <h2 className="font-display text-5xl md:text-6xl lg:text-7xl tracking-tight text-foreground mb-6">
-            Product paths that
+            Simple pricing.
             <br />
-            <span className="text-stroke">match the app</span>
+            <span className="text-stroke">No inbox surprises.</span>
           </h2>
           <p className="text-lg text-muted-foreground max-w-xl">
-            MailMate is presented here through real entry points: demo mode, Google-connected workspace mode, and the production extension path.
+            Start with the free demo, upgrade when you connect your Gmail. Cancel anytime — your data never leaves your browser.
           </p>
         </div>
 
@@ -97,16 +96,17 @@ export function PricingSection() {
 
               {/* Price */}
               <div className="mb-8 pb-8 border-b border-foreground/10">
-                {plan.price.monthly !== null ? (
-                  <div className="flex items-baseline gap-2">
-                    <span className="font-display text-5xl lg:text-6xl text-foreground">
-                      ${plan.price.monthly}
-                    </span>
-                    <span className="text-muted-foreground">setup</span>
-                  </div>
-                ) : (
-                  <span className="font-display text-4xl text-foreground">Workflow</span>
-                )}
+                <div className="flex items-baseline gap-2">
+                  <span className="font-display text-5xl lg:text-6xl text-foreground">
+                    ${plan.price.monthly}
+                  </span>
+                  {plan.price.monthly > 0 && (
+                    <span className="text-muted-foreground">/mo</span>
+                  )}
+                  {plan.price.monthly === 0 && (
+                    <span className="text-muted-foreground">forever</span>
+                  )}
+                </div>
               </div>
 
               {/* Features */}
@@ -136,9 +136,9 @@ export function PricingSection() {
 
         {/* Bottom Note */}
         <p className="mt-12 text-center text-sm text-muted-foreground">
-          Every card above maps to MailMate features that exist now or belong directly to its production roadmap.{" "}
-          <a href="#features" className="underline underline-offset-4 hover:text-foreground transition-colors">
-            Review the feature map
+          All plans include end-to-end encryption and zero server-side data storage.{" "}
+          <a href="#security" className="underline underline-offset-4 hover:text-foreground transition-colors">
+            Learn about our trust model
           </a>
         </p>
       </div>

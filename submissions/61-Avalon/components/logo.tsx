@@ -17,7 +17,7 @@ export function Logo({ size = 'default', dark = false }: { size?: 'sm' | 'defaul
         className={`object-contain ${dark ? 'invert' : ''}`}
       />
       <span className={`${config.text} font-display tracking-tight ${dark ? 'text-white' : 'text-gray-900'}`}>
-        Mail<span className="text-blue-600">Mate</span>
+        <span className="font-black">M</span>ail<span className="font-black">M</span>ate
       </span>
     </div>
   )

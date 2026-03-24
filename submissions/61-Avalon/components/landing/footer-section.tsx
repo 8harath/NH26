@@ -12,33 +12,33 @@ type FooterLink = {
 const footerLinks: Record<string, FooterLink[]> = {
   Product: [
     { name: "Features", href: "#features" },
-    { name: "Workflow", href: "#how-it-works" },
-    { name: "Access modes", href: "#pricing" },
+    { name: "How it works", href: "#how-it-works" },
+    { name: "Pricing", href: "#pricing" },
     { name: "Integrations", href: "#integrations" },
   ],
-  Build: [
-    { name: "Implementation stack", href: "#developers" },
-    { name: "Product metrics", href: "#studio" },
-    { name: "Trust model", href: "#security" },
-    { name: "Scenario coverage", href: "#integrations" },
+  Resources: [
+    { name: "Documentation", href: "#developers" },
+    { name: "API reference", href: "#developers" },
+    { name: "Security", href: "#security" },
+    { name: "Changelog", href: "#features" },
   ],
-  Application: [
-    { name: "AI summaries", href: "#features" },
-    { name: "Action suggestions", href: "#features" },
-    { name: "Approval workflow", href: "#security" },
-    { name: "Demo inbox", href: "#pricing" },
+  Company: [
+    { name: "About", href: "#" },
+    { name: "Blog", href: "#" },
+    { name: "Careers", href: "#", badge: "Hiring" },
+    { name: "Contact", href: "#" },
   ],
   Legal: [
-    { name: "Trust model", href: "#security" },
-    { name: "Landing scope", href: "#pricing" },
-    { name: "Section sync", href: "#features" },
+    { name: "Privacy policy", href: "#" },
+    { name: "Terms of service", href: "#" },
+    { name: "Cookie policy", href: "#" },
   ],
 };
 
 const socialLinks = [
-  { name: "Workflow", href: "#how-it-works" },
-  { name: "Stack", href: "#developers" },
-  { name: "Features", href: "#features" },
+  { name: "Twitter", href: "#" },
+  { name: "GitHub", href: "#" },
+  { name: "Discord", href: "#" },
 ];
 
 export function FooterSection() {
@@ -56,8 +56,7 @@ export function FooterSection() {
             {/* Brand Column */}
             <div className="col-span-2">
               <a href="#" className="inline-flex items-center gap-2 mb-6">
-                <span className="text-2xl font-display">MailMate</span>
-                <span className="text-xs text-muted-foreground font-mono">TM</span>
+                <span className="text-2xl font-display"><span className="font-black">M</span>ail<span className="font-black">M</span>ate</span>
               </a>
 
               <p className="text-muted-foreground leading-relaxed mb-8 max-w-xs">
@@ -108,13 +107,13 @@ export function FooterSection() {
         {/* Bottom Bar */}
         <div className="py-8 border-t border-foreground/10 flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-sm text-muted-foreground">
-            2026 MailMate. Production-ready landing and application flow.
+            &copy; 2026 MailMate. All rights reserved.
           </p>
 
           <div className="flex items-center gap-4 text-sm text-muted-foreground">
             <span className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-green-500" />
-              Landing content synchronized
+              All systems operational
             </span>
           </div>
         </div>

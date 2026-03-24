@@ -7,7 +7,7 @@ const integrations = [
   { name: "Google Calendar", category: "Event Sync" },
   { name: "Google OAuth", category: "Authentication" },
   { name: "Groq", category: "LLM Inference" },
-  { name: "Next.js 16", category: "Frontend Framework" },
+  { name: "Next.js 15", category: "Frontend Framework" },
   { name: "React 19", category: "UI Runtime" },
   { name: "TypeScript", category: "Type Safety" },
   { name: "shadcn/ui", category: "Component System" },
@@ -48,12 +48,12 @@ export function IntegrationsSection() {
             <span className="w-8 h-px bg-foreground/30" />
           </span>
           <h2 className="text-4xl lg:text-6xl font-display tracking-tight mb-6">
-            Matches the app
+            Connects with
             <br />
-            stack and flow.
+            what you already use.
           </h2>
           <p className="text-xl text-muted-foreground">
-            The landing experience now matches the actual MailMate product stack, auth model, and AI workflow used by the application routes.
+            MailMate plugs into Gmail, Google Calendar, and leading AI infrastructure so your existing workflow stays intact.
           </p>
         </div>
 

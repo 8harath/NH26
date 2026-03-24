@@ -45,29 +45,29 @@ function AnimatedCounter({ end, suffix = "", prefix = "" }: { end: number; suffi
 }
 
 const metrics = [
-  { 
-    value: 16, 
-    suffix: "", 
+  {
+    value: 73,
+    suffix: "%",
     prefix: "",
-    label: "acceptance criteria implemented in the MVP",
+    label: "reduction in time spent reading email threads",
   },
-  { 
-    value: 3, 
-    suffix: "", 
-    prefix: "",
-    label: "AI-generated summary bullets per thread",
+  {
+    value: 2,
+    suffix: "s",
+    prefix: "<",
+    label: "average AI analysis response time per thread",
   },
-  { 
-    value: 3, 
-    suffix: "", 
+  {
+    value: 12,
+    suffix: "+",
     prefix: "",
-    label: "editable action types: reply, event, task",
+    label: "data points extracted from every email analysis",
   },
-  { 
-    value: 6, 
-    suffix: "", 
+  {
+    value: 100,
+    suffix: "%",
     prefix: "",
-    label: "sample conversations available at launch",
+    label: "of actions require human approval before sending",
   },
 ];
 
@@ -108,9 +108,9 @@ export function MetricsSection() {
                 isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
               }`}
             >
-              Coverage you
+              Numbers that
               <br />
-              can explain.
+              speak for themselves.
             </h2>
           </div>
           <div className="flex items-center gap-4 font-mono text-sm text-muted-foreground">

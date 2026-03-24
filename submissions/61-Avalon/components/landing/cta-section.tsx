@@ -84,7 +84,7 @@ export function CtaSection() {
                 </div>
 
                 <p className="text-sm text-muted-foreground mt-8 font-mono">
-                  One landing page. One MailMate app flow.
+                  No credit card required. Free demo available instantly.
                 </p>
               </div>
 

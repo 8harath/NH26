@@ -12,17 +12,17 @@ const securityFeatures = [
   {
     icon: Lock,
     title: "Scoped Google access",
-    description: "The application is designed around Gmail and Calendar permissions only where that workflow is required.",
+    description: "MailMate only requests Gmail read/send and Calendar scopes — nothing more. No contacts, no Drive, no unnecessary access.",
   },
   {
     icon: Eye,
     title: "Demo mode available",
-    description: "A mock inbox is included so the core experience can be reviewed without connecting a live mailbox first.",
+    description: "Explore every feature with realistic sample data before connecting a live account. No signup required.",
   },
   {
     icon: FileCheck,
     title: "No server-side caching",
-    description: "The MVP explicitly keeps AI analysis on demand rather than hiding stale results behind background persistence.",
+    description: "AI analysis runs on demand. No email data is stored on any server — results live in your browser and disappear when you clear them.",
   },
 ];
 
@@ -64,8 +64,8 @@ export function SecuritySection() {
               with the user.
             </h2>
             <p className="text-xl text-muted-foreground leading-relaxed mb-12">
-              The MailMate app is not positioned as a black-box autopilot. It prepares actions,
-              preserves editability, and keeps the decision loop visible throughout the workflow.
+              MailMate is not an autopilot. Every reply, calendar event, and task stays editable
+              until you explicitly approve it. You see exactly what the AI suggests before anything happens.
             </p>
 
             {/* Certifications */}
