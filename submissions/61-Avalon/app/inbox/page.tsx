@@ -2345,7 +2345,7 @@ export default function InboxPage() {
         )}
 
         {/* Content */}
-        <main className="flex-1 flex overflow-hidden bg-gray-50/50">
+        <main className="flex-1 flex overflow-hidden bg-gray-50/50 min-w-0">
           {isCalendarView ? (
             <CalendarWorkspace
               events={calendarEvents}
@@ -2384,7 +2384,7 @@ export default function InboxPage() {
               </Empty>
             </div>
           ) : (
-            <div className="flex-1 flex flex-col overflow-hidden bg-white">
+            <div className="flex-1 flex flex-col overflow-hidden bg-white min-w-0">
               {/* Thread header */}
               <div className="px-6 py-4 border-b border-gray-100 shrink-0 bg-gradient-to-r from-white to-gray-50/50">
                 <div className="flex items-start justify-between">
@@ -2603,7 +2603,7 @@ export default function InboxPage() {
 
           {/* Chat sidebar */}
           {showChat && (
-            <aside className="w-80 border-l border-gray-200/80 flex flex-col shrink-0 bg-white overflow-hidden min-h-0">
+            <aside className="w-80 border-l border-gray-200/80 flex flex-col shrink-0 bg-white overflow-hidden min-h-0 h-full">
               <div className="h-14 border-b border-gray-100 flex items-center justify-between px-4 shrink-0">
                 <span className="text-sm font-bold text-gray-700 flex items-center gap-2">
                   <div className="w-7 h-7 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center">
