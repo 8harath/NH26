@@ -108,9 +108,61 @@ export interface ThreadAnalysisState {
   error: string | null
 }
 
+export interface AgentStep {
+  toolCalls?: { name: string; args: Record<string, unknown> }[]
+  toolResults?: { name: string; result: unknown }[]
+  text?: string
+}
+
+export interface AgentResponse {
+  reply: string
+  steps: AgentStep[]
+}
+
 export interface AIChatMessage {
   id: string
   role: 'user' | 'assistant'
   content: string
   timestamp: string
+  steps?: AgentStep[]
+  delegations?: DelegationStep[]
+  memoriesUsed?: AgentMemoryEntry[]
+  memoriesStored?: { category: MemoryCategory; key: string; value: string }[]
+}
+
+// --- Agent Memory Types ---
+
+export type MemoryCategory =
+  | 'sender_preference'
+  | 'priority_rule'
+  | 'scheduling_preference'
+  | 'writing_style'
+  | 'general'
+
+export interface AgentMemoryEntry {
+  id: string
+  user_id: string
+  category: MemoryCategory
+  key: string
+  value: string
+  confidence: number
+  source_message?: string
+  created_at: string
+  updated_at: string
+}
+
+// --- Coordinator Types ---
+
+export interface DelegationStep {
+  agent: 'triage' | 'scheduler' | 'writer' | 'memory'
+  action: string
+  result: string
+}
+
+export interface CoordinatorResult {
+  reply: string
+  steps: AgentStep[]
+  delegations: DelegationStep[]
+  memoriesUsed: AgentMemoryEntry[]
+  memoriesStored: { category: MemoryCategory; key: string; value: string }[]
 }
